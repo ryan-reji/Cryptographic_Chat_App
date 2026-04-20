@@ -24,13 +24,13 @@ import {
 // 🔥 FIREBASE CONFIG — replace with your own!
 // ─────────────────────────────────────────────
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyCf-1oBpg1bWJwYhJxX7GGyYs7vBlzFOqk",
+  authDomain: "crpytchat.firebaseapp.com",
+  databaseURL: "https://crpytchat-default-rtdb.firebaseio.com",
+  projectId: "crpytchat",
+  storageBucket: "crpytchat.firebasestorage.app",
+  messagingSenderId: "162197325092",
+  appId: "1:162197325092:web:587ba728f8332fd0f49fb1"
 };
 
 const app = initializeApp(firebaseConfig);
