@@ -147,23 +147,22 @@ function bytesToHex(bytes) {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
+
 function hexToBytes(hex) {
   const arr = new Uint8Array(hex.length / 2);
   for (let i = 0; i < arr.length; i++)
     arr[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return arr;
 }
-function randomHex(bytes = 16) {
-  return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes)));
-}
-// ... existing hexToBytes and randomHex functions ...
 
 function randomHex(bytes = 16) {
+  // Check if we are in a browser environment to avoid Vercel build errors
+  if (typeof crypto === 'undefined' || !crypto.getRandomValues) return "";
   return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes)));
 }
 
 // ─────────────────────────────────────────────
-// 📦 PERSISTENT STORAGE HELPERS (Add this here!)
+// 📦 PERSISTENT STORAGE HELPERS
 // ─────────────────────────────────────────────
 const DB_NAME = "SecureChatStore";
 const STORE_NAME = "KeyPairs";
@@ -188,6 +187,9 @@ async function saveKeyLocally(username, keypair) {
 
 async function getLocalKey(username) {
   return new Promise((resolve, reject) => {
+    // Basic check for SSR/Vercel build safety
+    if (typeof indexedDB === 'undefined') return resolve(null);
+    
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(STORE_NAME)) {
@@ -203,11 +205,6 @@ async function getLocalKey(username) {
     request.onerror = () => reject(request.error);
   });
 }
-
-// ─────────────────────────────────────────────
-// 🎨 STYLES
-// ─────────────────────────────────────────────
-// ... existing styles ...
 
 // ─────────────────────────────────────────────
 // 🎨 STYLES
