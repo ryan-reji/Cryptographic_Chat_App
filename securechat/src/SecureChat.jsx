@@ -482,7 +482,7 @@ function LoginScreen({ onLogin }) {
         <input
           style={S.input}
           type="password"
-          placeholder={user === "alice" ? "alice_password_123" : "bob_password_456"}
+          placeholder={user === "alice" ? "Enter Password" : "Enter Password"}
           value={pass}
           onChange={e => setPass(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleLogin()}
