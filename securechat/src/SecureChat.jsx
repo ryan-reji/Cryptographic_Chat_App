@@ -156,6 +156,58 @@ function hexToBytes(hex) {
 function randomHex(bytes = 16) {
   return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes)));
 }
+// ... existing hexToBytes and randomHex functions ...
+
+function randomHex(bytes = 16) {
+  return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes)));
+}
+
+// ─────────────────────────────────────────────
+// 📦 PERSISTENT STORAGE HELPERS (Add this here!)
+// ─────────────────────────────────────────────
+const DB_NAME = "SecureChatStore";
+const STORE_NAME = "KeyPairs";
+
+async function saveKeyLocally(username, keypair) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
+        request.result.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      tx.objectStore(STORE_NAME).put(keypair, username);
+      tx.oncomplete = () => resolve();
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function getLocalKey(username) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
+        request.result.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const getReq = tx.objectStore(STORE_NAME).get(username);
+      getReq.onsuccess = () => resolve(getReq.result);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// ─────────────────────────────────────────────
+// 🎨 STYLES
+// ─────────────────────────────────────────────
+// ... existing styles ...
 
 // ─────────────────────────────────────────────
 // 🎨 STYLES
@@ -525,38 +577,50 @@ function ChatScreen({ username, onLogout }) {
 
   // Step 1: Generate ECDH keypair, publish public key
   useEffect(() => {
-    (async () => {
-      setStatus("Generating ECDH keypair…");
-      const kp = await generateECDHKeypair();
-      keypairRef.current = kp;
-      const pubHex = await exportPublicKey(kp);
-      setMyPubKeyHex(pubHex);
+  (async () => {
+    setStatus("Checking for existing keys...");
+    
+    // 1. Try to load existing keypair from IndexedDB
+    let kp = await getLocalKey(username);
+    
+    if (!kp) {
+      setStatus("Generating new ECDH keypair...");
+      kp = await generateECDHKeypair();
+      // 2. Save it for next time
+      await saveKeyLocally(username, kp);
+    } else {
+      setStatus("Loaded persistent keypair from storage.");
+    }
 
-      // Publish my public key to Firebase
-      await set(ref(db, `keys/${username}`), { pubKey: pubHex, ts: Date.now() });
-      setStatus(`Waiting for ${peer} to connect…`);
+    keypairRef.current = kp;
+    const pubHex = await exportPublicKey(kp);
+    setMyPubKeyHex(pubHex);
 
-      // Watch for peer's public key
-      const peerKeyRef = ref(db, `keys/${peer}`);
-      const unsub = onValue(peerKeyRef, async (snap) => {
-        if (!snap.exists()) return;
-        const { pubKey } = snap.val();
-        setPeerPubKeyHex(pubKey);
+    // 3. Update Firebase with the key (ensure it's always current)
+    await set(ref(db, `keys/${username}`), { pubKey: pubHex, ts: Date.now() });
+    
+    setStatus(`Waiting for ${peer} to connect...`);
 
-        // Step 2: Derive shared AES key via ECDH
-        setStatus("Performing ECDH key exchange…");
-        try {
-          const sharedKey = await deriveSharedAESKey(kp.privateKey, pubKey);
-          aesKeyRef.current = sharedKey;
-          setStatus("Secure channel established ✓");
-          setReady(true);
-        } catch (e) {
-          setStatus("Key exchange failed: " + e.message);
-        }
-      });
-      return () => unsub();
-    })();
-  }, [username, peer]);
+    // 4. Watch for peer's public key (unchanged from your original)
+    const peerKeyRef = ref(db, `keys/${peer}`);
+    const unsub = onValue(peerKeyRef, async (snap) => {
+      if (!snap.exists()) return;
+      const { pubKey } = snap.val();
+      setPeerPubKeyHex(pubKey);
+
+      setStatus("Deriving shared channel...");
+      try {
+        const sharedKey = await deriveSharedAESKey(kp.privateKey, pubKey);
+        aesKeyRef.current = sharedKey;
+        setStatus("Secure channel established ✓");
+        setReady(true);
+      } catch (e) {
+        setStatus("Key exchange failed: " + e.message);
+      }
+    });
+    return () => unsub();
+  })();
+}, [username, peer]);
 
   // Step 3: Listen for messages
   useEffect(() => {
