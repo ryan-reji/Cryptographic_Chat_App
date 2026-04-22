@@ -7,7 +7,7 @@
 //  2. Replace the firebaseConfig below with your project's config
 //  3. npm install firebase
 //  4. Deploy to Vercel
-
+ 
 import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import {
@@ -18,7 +18,7 @@ import {
   set,
   get,
 } from "firebase/database";
-
+ 
 // ─────────────────────────────────────────────
 // 🔥 FIREBASE CONFIG — replace with your own!
 // ─────────────────────────────────────────────
@@ -31,10 +31,10 @@ const firebaseConfig = {
   messagingSenderId: "162197325092",
   appId: "1:162197325092:web:587ba728f8332fd0f49fb1"
 };
-
+ 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-
+ 
 // ─────────────────────────────────────────────
 // 👥 USERS
 // ─────────────────────────────────────────────
@@ -42,7 +42,7 @@ const USERS = {
   alice: "alice_password_123",
   bob: "bob_password_456",
 };
-
+ 
 // ─────────────────────────────────────────────
 // 🔐 CRYPTOGRAPHY LAYER
 // ─────────────────────────────────────────────
@@ -56,12 +56,12 @@ async function hashPassword(password, saltHex) {
   const digest = await crypto.subtle.digest("SHA-256", combined);
   return bytesToHex(new Uint8Array(digest));
 }
-
+ 
 async function verifyPassword(password, saltHex, storedHash) {
   const hash = await hashPassword(password, saltHex);
   return hash === storedHash;
 }
-
+ 
 async function generateECDHKeypair() {
   return crypto.subtle.generateKey(
     { name: "ECDH", namedCurve: "P-256" },
@@ -69,12 +69,12 @@ async function generateECDHKeypair() {
     ["deriveKey"]
   );
 }
-
+ 
 async function exportPublicKey(keypair) {
   const raw = await crypto.subtle.exportKey("raw", keypair.publicKey);
   return bytesToHex(new Uint8Array(raw));
 }
-
+ 
 async function deriveSharedAESKey(privateKey, peerPublicKeyHex) {
   const peerRaw = hexToBytes(peerPublicKeyHex);
   const peerPublicKey = await crypto.subtle.importKey(
@@ -92,7 +92,7 @@ async function deriveSharedAESKey(privateKey, peerPublicKeyHex) {
     ["encrypt", "decrypt"]
   );
 }
-
+ 
 async function encryptMessage(text, aesKey) {
   const enc = new TextEncoder();
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -106,7 +106,7 @@ async function encryptMessage(text, aesKey) {
     ciphertext: bytesToHex(new Uint8Array(ciphertext)),
   };
 }
-
+ 
 async function decryptMessage(ivHex, ciphertextHex, aesKey) {
   try {
     const iv = hexToBytes(ivHex);
@@ -121,31 +121,31 @@ async function decryptMessage(ivHex, ciphertextHex, aesKey) {
     return "[DECRYPTION FAILED]";
   }
 }
-
+ 
 function bytesToHex(bytes) {
   return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
-
+ 
 function hexToBytes(hex) {
   const arr = new Uint8Array(hex.length / 2);
   for (let i = 0; i < arr.length; i++)
     arr[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return arr;
 }
-
+ 
 function randomHex(bytes = 16) {
   if (typeof crypto === "undefined" || !crypto.getRandomValues) return "";
   return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes)));
 }
-
+ 
 // ─────────────────────────────────────────────
 // 📦 PERSISTENT STORAGE
 // ─────────────────────────────────────────────
 const DB_NAME = "SecureChatStore";
 const STORE_NAME = "KeyPairs";
-
+ 
 async function saveKeyLocally(username, keypair) {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
@@ -162,7 +162,7 @@ async function saveKeyLocally(username, keypair) {
     request.onerror = () => reject(request.error);
   });
 }
-
+ 
 async function getLocalKey(username) {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") return resolve(null);
@@ -180,32 +180,36 @@ async function getLocalKey(username) {
     request.onerror = () => reject(request.error);
   });
 }
-
+ 
 // ─────────────────────────────────────────────
-// 🎨 DESIGN TOKENS
+// 🎨 DESIGN TOKENS — Warm Editorial / Paper
 // ─────────────────────────────────────────────
 const C = {
-  bg:       "#06060A",
-  bgPanel:  "#0C0C12",
-  bgInput:  "#080810",
-  amber:    "#D4941A",
-  amberDim: "#8A5E0A",
-  amberGlow:"#F5B942",
-  red:      "#C0392B",
-  redDim:   "#6B1A14",
-  green:    "#27AE60",
-  greenDim: "#0D4D28",
-  border:   "#1E1E2E",
-  borderLit:"#3A3A5C",
-  muted:    "#3A3A4A",
-  mutedText:"#6A6A8A",
-  alice:    "#D4941A",  // amber
-  bob:      "#5DADE2",  // steel blue
+  paper:      "#F7F3EE",
+  paperDark:  "#EDE8E0",
+  paperDeep:  "#E0D9CE",
+  ink:        "#1C1917",
+  inkMid:     "#44403C",
+  inkLight:   "#78716C",
+  inkFaint:   "#A8A29E",
+  border:     "#D6CFC4",
+  borderDark: "#B5ADA2",
+  alice:      "#7C3AED",   // violet
+  aliceBg:    "#EDE9FE",
+  bob:        "#0369A1",   // slate blue
+  bobBg:      "#E0F2FE",
+  accent:     "#92400E",   // warm brown
+  accentBg:   "#FEF3C7",
+  green:      "#15803D",
+  greenBg:    "#DCFCE7",
+  red:        "#B91C1C",
+  redBg:      "#FEE2E2",
 };
-
-const FONT_MONO  = "'Share Tech Mono', 'Courier New', monospace";
-const FONT_TITLE = "'Orbitron', monospace";
-
+ 
+const FONT_SERIF  = "'Playfair Display', Georgia, serif";
+const FONT_SANS   = "'DM Sans', 'Helvetica Neue', sans-serif";
+const FONT_MONO   = "'JetBrains Mono', 'Fira Code', monospace";
+ 
 // ─────────────────────────────────────────────
 // 🔐 LOGIN SCREEN
 // ─────────────────────────────────────────────
@@ -214,23 +218,17 @@ function LoginScreen({ onLogin }) {
   const [pass, setPass] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [tick, setTick] = useState(true);
-
-  useEffect(() => {
-    const t = setInterval(() => setTick(v => !v), 530);
-    return () => clearInterval(t);
-  }, []);
-
+ 
   async function handleLogin() {
     setLoading(true);
     setError("");
     try {
       const correctPass = USERS[user];
-      if (!correctPass) { setError("UNKNOWN OPERATOR ID"); setLoading(false); return; }
-
+      if (!correctPass) { setError("Unknown operator ID."); setLoading(false); return; }
+ 
       const userRef = ref(db, `users/${user}`);
       const snap = await get(userRef);
-
+ 
       if (!snap.exists()) {
         const salt = randomHex(16);
         const hash = await hashPassword(correctPass, salt);
@@ -242,292 +240,246 @@ function LoginScreen({ onLogin }) {
         if (ok) {
           onLogin(user);
         } else {
-          setError("AUTHENTICATION FAILURE — ACCESS DENIED");
+          setError("Incorrect passphrase. Authentication denied.");
         }
       }
     } catch (e) {
-      setError("SYSTEM ERROR: " + e.message);
+      setError("System error: " + e.message);
     }
     setLoading(false);
   }
-
+ 
   return (
     <div style={{
-      fontFamily: FONT_MONO,
-      background: C.bg,
+      fontFamily: FONT_SANS,
+      background: C.paper,
       minHeight: "100vh",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       position: "relative",
-      overflow: "hidden",
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
-        @keyframes scanline {
-          0% { transform: translateY(-100%); }
-          100% { transform: translateY(100vh); }
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+ 
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-        @keyframes flicker {
-          0%,100% { opacity: 1; }
-          92% { opacity: 1; }
-          93% { opacity: 0.6; }
-          94% { opacity: 1; }
-          96% { opacity: 0.8; }
-          97% { opacity: 1; }
+        @keyframes shimmer {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 0.9; }
         }
-        @keyframes glitch {
-          0%,100% { clip-path: none; transform: none; }
-          2% { clip-path: inset(30% 0 50% 0); transform: translate(-4px, 0); }
-          4% { clip-path: none; transform: none; }
-          6% { clip-path: inset(70% 0 10% 0); transform: translate(4px, 0); }
-          8% { clip-path: none; transform: none; }
+ 
+        .login-card { animation: fadeUp 0.5s ease both; }
+ 
+        .field-input {
+          width: 100%;
+          background: white;
+          border: 1.5px solid ${C.border};
+          color: ${C.ink};
+          padding: 11px 14px;
+          font-size: 14px;
+          font-family: ${FONT_SANS};
+          outline: none;
+          border-radius: 8px;
+          transition: border-color 0.15s, box-shadow 0.15s;
+          box-sizing: border-box;
         }
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .login-panel {
-          animation: flicker 8s infinite, fadeIn 0.4s ease both;
+        .field-input:focus {
+          border-color: ${C.accent};
+          box-shadow: 0 0 0 3px ${C.accentBg};
         }
-        .logo-glitch {
-          animation: glitch 6s infinite;
+        .field-select {
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2378716C' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 12px center;
+          cursor: pointer;
         }
-        input:-webkit-autofill {
-          -webkit-box-shadow: 0 0 0 1000px ${C.bgInput} inset !important;
-          -webkit-text-fill-color: ${C.amber} !important;
+        .auth-btn {
+          width: 100%;
+          background: ${C.ink};
+          border: none;
+          color: ${C.paper};
+          padding: 12px 0;
+          font-size: 13px;
+          font-family: ${FONT_SANS};
+          font-weight: 500;
+          letter-spacing: 0.06em;
+          cursor: pointer;
+          border-radius: 8px;
+          transition: background 0.15s, transform 0.1s;
         }
-        select option { background: ${C.bgInput}; color: ${C.amber}; }
-        ::-webkit-scrollbar { width: 3px; }
-        ::-webkit-scrollbar-track { background: ${C.bg}; }
-        ::-webkit-scrollbar-thumb { background: ${C.amberDim}; }
+        .auth-btn:hover { background: ${C.inkMid}; }
+        .auth-btn:active { transform: scale(0.99); }
+        .auth-btn:disabled { background: ${C.inkFaint}; cursor: not-allowed; }
+ 
+        select option { background: white; color: ${C.ink}; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: ${C.paper}; }
+        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }
       `}</style>
-
-      {/* Scanline sweep */}
+ 
+      {/* Subtle ruled-paper lines in background */}
       <div style={{
-        position: "fixed", inset: 0, pointerEvents: "none", zIndex: 50,
-        background: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.18) 2px, rgba(0,0,0,0.18) 4px)",
+        position: "fixed", inset: 0, pointerEvents: "none",
+        backgroundImage: `repeating-linear-gradient(transparent, transparent 27px, ${C.paperDeep} 27px, ${C.paperDeep} 28px)`,
+        opacity: 0.5,
       }} />
+ 
+      {/* Left margin line */}
       <div style={{
-        position: "fixed", left: 0, right: 0, height: "40px", pointerEvents: "none", zIndex: 49,
-        background: "linear-gradient(transparent, rgba(212,148,26,0.04), transparent)",
-        animation: "scanline 4s linear infinite",
+        position: "fixed", left: "12%", top: 0, bottom: 0, width: 1,
+        background: `${C.alice}30`, pointerEvents: "none",
       }} />
-
-      {/* Corner decorations */}
-      {[
-        { top: 24, left: 24 },
-        { top: 24, right: 24 },
-        { bottom: 24, left: 24 },
-        { bottom: 24, right: 24 },
-      ].map((pos, i) => (
-        <div key={i} style={{
-          position: "fixed", ...pos,
-          width: 24, height: 24, pointerEvents: "none",
-          borderTop: i < 2 ? `1px solid ${C.amberDim}` : "none",
-          borderBottom: i >= 2 ? `1px solid ${C.amberDim}` : "none",
-          borderLeft: i % 2 === 0 ? `1px solid ${C.amberDim}` : "none",
-          borderRight: i % 2 === 1 ? `1px solid ${C.amberDim}` : "none",
-        }} />
-      ))}
-
-      <div className="login-panel" style={{
-        width: 400,
-        border: `1px solid ${C.borderLit}`,
-        background: C.bgPanel,
-        padding: "0",
+ 
+      <div className="login-card" style={{
+        width: 380,
+        background: "white",
+        border: `1.5px solid ${C.border}`,
+        borderRadius: 16,
+        overflow: "hidden",
+        boxShadow: `0 2px 0 ${C.paperDeep}, 0 4px 0 ${C.border}, 0 20px 60px rgba(0,0,0,0.08)`,
         position: "relative",
+        zIndex: 1,
       }}>
-        {/* Header bar */}
+        {/* Colored top stripe */}
         <div style={{
-          background: C.amber,
-          padding: "6px 16px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}>
-          <span style={{ fontFamily: FONT_TITLE, fontSize: 9, fontWeight: 900, color: C.bg, letterSpacing: "0.3em" }}>
-            CRYPTCHAT
-          </span>
-          <span style={{ fontSize: 9, color: C.bg, letterSpacing: "0.15em", opacity: 0.7 }}>
-            SECURE COMMS v2.4
-          </span>
-        </div>
-
-        {/* Classified stamp area */}
-        <div style={{
-          borderBottom: `1px solid ${C.border}`,
-          padding: "14px 24px 12px",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-        }}>
-          <div style={{
-            border: `2px solid ${C.red}`,
-            padding: "3px 8px",
-            fontSize: 9,
-            fontWeight: 700,
-            color: C.red,
-            letterSpacing: "0.25em",
-            lineHeight: 1,
-          }}>
-            CLASSIFIED
-          </div>
-          <div style={{ fontSize: 10, color: C.mutedText, letterSpacing: "0.1em" }}>
-            AUTHORIZED PERSONNEL ONLY
-          </div>
-        </div>
-
-        <div style={{ padding: "24px 24px 28px" }}>
+          height: 4,
+          background: `linear-gradient(90deg, ${C.alice} 0%, ${C.bob} 100%)`,
+        }} />
+ 
+        <div style={{ padding: "32px 32px 36px" }}>
           {/* Logo */}
-          <div style={{ marginBottom: 28, position: "relative" }}>
-            <div className="logo-glitch" style={{
-              fontFamily: FONT_TITLE,
-              fontSize: 28,
-              fontWeight: 900,
-              color: C.amberGlow,
-              letterSpacing: "0.12em",
-              lineHeight: 1,
-              textShadow: `0 0 20px ${C.amber}55, 0 0 40px ${C.amber}22`,
+          <div style={{ marginBottom: 32 }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10, marginBottom: 6,
             }}>
-              CRYPT<span style={{ color: C.amber }}>CHAT</span>
+              <div style={{
+                width: 32, height: 32,
+                background: C.ink,
+                borderRadius: 8,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <rect x="2" y="4" width="12" height="9" rx="2" stroke="white" strokeWidth="1.5"/>
+                  <path d="M5 4V3a3 3 0 016 0v1" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                  <circle cx="8" cy="8.5" r="1.5" fill="white"/>
+                  <path d="M8 10v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <span style={{
+                fontFamily: FONT_SERIF,
+                fontSize: 22,
+                fontWeight: 600,
+                color: C.ink,
+                letterSpacing: "-0.02em",
+              }}>
+                CryptChat
+              </span>
             </div>
-            <div style={{ fontSize: 10, color: C.mutedText, marginTop: 6, letterSpacing: "0.15em" }}>
-              E2E-ENCRYPTED · ECDH P-256 · AES-256-GCM
-            </div>
+            <p style={{
+              fontSize: 12,
+              color: C.inkLight,
+              margin: 0,
+              fontFamily: FONT_MONO,
+              letterSpacing: "0.02em",
+            }}>
+              ECDH P-256 · AES-256-GCM · SHA-256
+            </p>
           </div>
-
+ 
           {/* Error */}
           {error && (
             <div style={{
-              background: C.redDim,
-              border: `1px solid ${C.red}`,
-              padding: "8px 12px",
-              fontSize: 11,
-              color: "#E88",
-              marginBottom: 16,
-              letterSpacing: "0.05em",
+              background: C.redBg,
+              border: `1px solid #FECACA`,
+              borderLeft: `3px solid ${C.red}`,
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              color: C.red,
+              marginBottom: 20,
+              lineHeight: 1.5,
             }}>
-              ▲ {error}
+              {error}
             </div>
           )}
-
+ 
           {/* Operator ID */}
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 16 }}>
             <label style={{
               display: "block",
-              fontSize: 9,
-              color: C.mutedText,
-              letterSpacing: "0.2em",
-              marginBottom: 6,
+              fontSize: 11,
+              fontWeight: 500,
+              color: C.inkLight,
+              letterSpacing: "0.08em",
               textTransform: "uppercase",
+              marginBottom: 6,
             }}>
-              ▸ OPERATOR ID
+              Operator
             </label>
             <select
-              style={{
-                width: "100%",
-                background: C.bgInput,
-                border: `1px solid ${C.borderLit}`,
-                color: C.amber,
-                padding: "9px 12px",
-                fontSize: 13,
-                fontFamily: FONT_MONO,
-                letterSpacing: "0.1em",
-                outline: "none",
-                cursor: "pointer",
-                appearance: "none",
-              }}
+              className="field-input field-select"
               value={user}
               onChange={e => setUser(e.target.value)}
             >
-              <option value="alice">ALICE</option>
-              <option value="bob">BOB</option>
+              <option value="alice">Alice</option>
+              <option value="bob">Bob</option>
             </select>
           </div>
-
+ 
           {/* Passphrase */}
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 24 }}>
             <label style={{
               display: "block",
-              fontSize: 9,
-              color: C.mutedText,
-              letterSpacing: "0.2em",
-              marginBottom: 6,
+              fontSize: 11,
+              fontWeight: 500,
+              color: C.inkLight,
+              letterSpacing: "0.08em",
               textTransform: "uppercase",
+              marginBottom: 6,
             }}>
-              ▸ PASSPHRASE
+              Passphrase
             </label>
-            <div style={{ position: "relative" }}>
-              <input
-                type="password"
-                placeholder="ENTER CLEARANCE CODE"
-                value={pass}
-                onChange={e => setPass(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleLogin()}
-                style={{
-                  width: "100%",
-                  background: C.bgInput,
-                  border: `1px solid ${C.borderLit}`,
-                  color: C.amber,
-                  padding: "9px 12px",
-                  fontSize: 13,
-                  fontFamily: FONT_MONO,
-                  letterSpacing: "0.15em",
-                  outline: "none",
-                }}
-              />
-              <span style={{
-                position: "absolute",
-                right: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: C.amber,
-                fontSize: 14,
-                animation: "blink 1.1s step-end infinite",
-                opacity: tick ? 1 : 0,
-              }}>▌</span>
-            </div>
+            <input
+              type="password"
+              placeholder="Enter clearance code"
+              value={pass}
+              onChange={e => setPass(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleLogin()}
+              className="field-input"
+            />
           </div>
-
+ 
           {/* Auth button */}
           <button
             onClick={handleLogin}
             disabled={loading}
-            style={{
-              width: "100%",
-              background: loading ? C.amberDim : C.amber,
-              border: "none",
-              color: C.bg,
-              padding: "11px 0",
-              fontSize: 11,
-              fontFamily: FONT_TITLE,
-              fontWeight: 700,
-              letterSpacing: "0.3em",
-              cursor: loading ? "not-allowed" : "pointer",
-              transition: "background 0.15s",
-            }}
+            className="auth-btn"
           >
-            {loading ? "AUTHENTICATING..." : "AUTHENTICATE →"}
+            {loading ? "Authenticating…" : "Sign in →"}
           </button>
-
+ 
           {/* Crypto footer */}
           <div style={{
-            marginTop: 20,
+            marginTop: 24,
+            paddingTop: 20,
             borderTop: `1px solid ${C.border}`,
-            paddingTop: 14,
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
-            gap: "6px 16px",
+            gap: "8px 20px",
           }}>
             {[
-              ["AUTH", "SHA-256 SALTED"],
-              ["KEX", "ECDH P-256"],
-              ["CIPHER", "AES-256-GCM"],
-              ["IV", "96-BIT RANDOM"],
+              ["Auth", "SHA-256 salted"],
+              ["Key exchange", "ECDH P-256"],
+              ["Cipher", "AES-256-GCM"],
+              ["IV", "96-bit random"],
             ].map(([k, v]) => (
-              <div key={k} style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
-                <span style={{ fontSize: 8, color: C.mutedText, letterSpacing: "0.15em", flexShrink: 0 }}>{k}</span>
-                <span style={{ fontSize: 8, color: C.amberDim, letterSpacing: "0.05em" }}>{v}</span>
+              <div key={k}>
+                <div style={{ fontSize: 10, color: C.inkFaint, marginBottom: 1 }}>{k}</div>
+                <div style={{ fontSize: 11, color: C.inkMid, fontFamily: FONT_MONO }}>{v}</div>
               </div>
             ))}
           </div>
@@ -536,7 +488,7 @@ function LoginScreen({ onLogin }) {
     </div>
   );
 }
-
+ 
 // ─────────────────────────────────────────────
 // 💬 CHAT SCREEN
 // ─────────────────────────────────────────────
@@ -544,7 +496,7 @@ function ChatScreen({ username, onLogout }) {
   const peer = username === "alice" ? "bob" : "alice";
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [status, setStatus] = useState("INITIALIZING ECDH SUBSYSTEM...");
+  const [status, setStatus] = useState("Initializing ECDH subsystem…");
   const [ready, setReady] = useState(false);
   const [myPubKeyHex, setMyPubKeyHex] = useState("");
   const [peerPubKeyHex, setPeerPubKeyHex] = useState("");
@@ -552,48 +504,51 @@ function ChatScreen({ username, onLogout }) {
   const keypairRef = useRef(null);
   const bottomRef = useRef(null);
   const [time, setTime] = useState(new Date());
-
+ 
+  const userColor = { alice: C.alice, bob: C.bob };
+  const userBg = { alice: C.aliceBg, bob: C.bobBg };
+ 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
-
+ 
   useEffect(() => {
     (async () => {
-      setStatus("CHECKING LOCAL KEY STORE...");
+      setStatus("Checking local key store…");
       let kp = await getLocalKey(username);
       if (!kp) {
-        setStatus("GENERATING ECDH KEYPAIR...");
+        setStatus("Generating ECDH keypair…");
         kp = await generateECDHKeypair();
         await saveKeyLocally(username, kp);
       } else {
-        setStatus("PERSISTENT KEYPAIR LOADED.");
+        setStatus("Persistent keypair loaded.");
       }
       keypairRef.current = kp;
       const pubHex = await exportPublicKey(kp);
       setMyPubKeyHex(pubHex);
       await set(ref(db, `keys/${username}`), { pubKey: pubHex, ts: Date.now() });
-      setStatus(`AWAITING PEER [${peer.toUpperCase()}]...`);
-
+      setStatus(`Awaiting peer (${peer})…`);
+ 
       const peerKeyRef = ref(db, `keys/${peer}`);
       const unsub = onValue(peerKeyRef, async (snap) => {
         if (!snap.exists()) return;
         const { pubKey } = snap.val();
         setPeerPubKeyHex(pubKey);
-        setStatus("DERIVING SHARED CHANNEL...");
+        setStatus("Deriving shared channel…");
         try {
           const sharedKey = await deriveSharedAESKey(kp.privateKey, pubKey);
           aesKeyRef.current = sharedKey;
-          setStatus("SECURE CHANNEL ESTABLISHED");
+          setStatus("Secure channel established");
           setReady(true);
         } catch (e) {
-          setStatus("KEY EXCHANGE FAILED: " + e.message);
+          setStatus("Key exchange failed: " + e.message);
         }
       });
       return () => unsub();
     })();
   }, [username, peer]);
-
+ 
   useEffect(() => {
     const msgsRef = ref(db, "messages");
     const unsub = onValue(msgsRef, async (snap) => {
@@ -612,11 +567,11 @@ function ChatScreen({ username, onLogout }) {
     });
     return () => unsub();
   }, [ready]);
-
+ 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
+ 
   async function sendMessage() {
     if (!input.trim() || !aesKeyRef.current) return;
     const text = input.trim();
@@ -629,244 +584,331 @@ function ChatScreen({ username, onLogout }) {
       ts: Date.now(),
     });
   }
-
-  const userColor = { alice: C.alice, bob: C.bob };
-
+ 
+  // Avatar initials
+  const initials = (name) => name[0].toUpperCase();
+ 
   return (
     <div style={{
-      fontFamily: FONT_MONO,
-      background: C.bg,
+      fontFamily: FONT_SANS,
+      background: C.paper,
       width: "100vw",
       height: "100vh",
       display: "flex",
       flexDirection: "column",
-      position: "relative",
       overflow: "hidden",
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
-        @keyframes scanline {
-          0% { transform: translateY(-100%); }
-          100% { transform: translateY(100vh); }
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+ 
+        @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes slideIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+ 
+        .msg-row { animation: slideIn 0.2s ease both; }
+ 
+        .send-btn {
+          background: ${C.ink};
+          border: none;
+          color: white;
+          padding: 0 20px;
+          height: 42px;
+          font-size: 13px;
+          font-family: ${FONT_SANS};
+          font-weight: 500;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: background 0.15s, transform 0.1s;
+          white-space: nowrap;
         }
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-        @keyframes fadeSlide { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
-        ::-webkit-scrollbar { width: 3px; }
-        ::-webkit-scrollbar-track { background: ${C.bg}; }
-        ::-webkit-scrollbar-thumb { background: ${C.amberDim}; }
-        input:-webkit-autofill {
-          -webkit-box-shadow: 0 0 0 1000px ${C.bgInput} inset !important;
-          -webkit-text-fill-color: ${C.amber} !important;
+        .send-btn:hover { background: ${C.inkMid}; }
+        .send-btn:active { transform: scale(0.98); }
+        .send-btn:disabled { background: ${C.inkFaint}; cursor: not-allowed; }
+ 
+        .msg-input {
+          flex: 1;
+          background: white;
+          border: 1.5px solid ${C.border};
+          color: ${C.ink};
+          padding: 10px 14px;
+          font-size: 14px;
+          font-family: ${FONT_SANS};
+          outline: none;
+          border-radius: 10px;
+          transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .msg-in { animation: fadeSlide 0.2s ease both; }
+        .msg-input:focus {
+          border-color: ${C.accent};
+          box-shadow: 0 0 0 3px ${C.accentBg};
+        }
+        .msg-input:disabled { opacity: 0.5; cursor: not-allowed; }
+ 
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }
+ 
+        .signout-btn {
+          background: transparent;
+          border: 1px solid ${C.border};
+          color: ${C.inkLight};
+          padding: 5px 12px;
+          font-size: 12px;
+          font-family: ${FONT_SANS};
+          border-radius: 6px;
+          cursor: pointer;
+          transition: background 0.12s, color 0.12s;
+        }
+        .signout-btn:hover { background: ${C.paperDark}; color: ${C.ink}; }
       `}</style>
-
-      {/* Scanlines */}
-      <div style={{
-        position: "fixed", inset: 0, pointerEvents: "none", zIndex: 50,
-        background: "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.14) 2px,rgba(0,0,0,0.14) 4px)",
-      }} />
-      <div style={{
-        position: "fixed", left: 0, right: 0, height: "60px", pointerEvents: "none", zIndex: 49,
-        background: "linear-gradient(transparent,rgba(212,148,26,0.03),transparent)",
-        animation: "scanline 5s linear infinite",
-      }} />
-
+ 
       {/* ── TOPBAR ── */}
       <div style={{
-        background: C.bgPanel,
+        background: "white",
         borderBottom: `1px solid ${C.border}`,
-        padding: "0 16px",
-        height: 48,
+        padding: "0 20px",
+        height: 56,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         flexShrink: 0,
       }}>
+        {/* Left: Logo + participants */}
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span style={{
-            fontFamily: FONT_TITLE,
-            fontSize: 13,
-            fontWeight: 900,
-            color: C.amberGlow,
-            letterSpacing: "0.15em",
-            textShadow: `0 0 12px ${C.amber}44`,
-          }}>
-            CRYPT<span style={{ color: C.amber }}>CHAT</span>
-          </span>
-
-          <div style={{ width: 1, height: 20, background: C.border }} />
-
-          {/* Operator badges */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{
-              fontSize: 9, letterSpacing: "0.2em",
-              color: userColor[username],
-              border: `1px solid ${userColor[username]}55`,
-              padding: "2px 7px",
+            <div style={{
+              width: 28, height: 28,
+              background: C.ink,
+              borderRadius: 7,
+              display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              {username.toUpperCase()}
-            </span>
-            <span style={{ fontSize: 9, color: C.mutedText }}>⟶</span>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="4" width="12" height="9" rx="2" stroke="white" strokeWidth="1.5"/>
+                <path d="M5 4V3a3 3 0 016 0v1" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                <circle cx="8" cy="8.5" r="1.5" fill="white"/>
+                <path d="M8 10v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </div>
             <span style={{
-              fontSize: 9, letterSpacing: "0.2em",
-              color: userColor[peer],
-              border: `1px solid ${userColor[peer]}55`,
-              padding: "2px 7px",
+              fontFamily: FONT_SERIF,
+              fontSize: 17,
+              fontWeight: 600,
+              color: C.ink,
+              letterSpacing: "-0.01em",
             }}>
-              {peer.toUpperCase()}
+              CryptChat
             </span>
           </div>
-
+ 
+          <div style={{ width: 1, height: 20, background: C.border }} />
+ 
+          {/* Participants */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {[username, peer].map((u, i) => (
+              <div key={u} style={{ display: "flex", alignItems: "center", gap: i === 1 ? 0 : 6 }}>
+                {i === 1 && (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ marginRight: 6, color: C.inkFaint }}>
+                    <path d="M3 7h8M7.5 4l3.5 3-3.5 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+                <div style={{
+                  width: 26, height: 26,
+                  borderRadius: "50%",
+                  background: userBg[u],
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: userColor[u],
+                  border: u === username ? `2px solid ${userColor[u]}` : `1px solid ${userColor[u]}40`,
+                }}>
+                  {initials(u)}
+                </div>
+                <span style={{
+                  fontSize: 13,
+                  color: u === username ? C.ink : C.inkLight,
+                  fontWeight: u === username ? 500 : 400,
+                }}>
+                  {u.charAt(0).toUpperCase() + u.slice(1)}
+                </span>
+              </div>
+            ))}
+          </div>
+ 
           {ready && (
             <div style={{
-              fontSize: 8,
-              color: C.green,
-              border: `1px solid ${C.greenDim}`,
-              padding: "2px 8px",
-              letterSpacing: "0.15em",
-              animation: "pulse 3s ease infinite",
+              display: "flex", alignItems: "center", gap: 5,
+              background: C.greenBg,
+              border: `1px solid #BBF7D0`,
+              borderRadius: 20,
+              padding: "3px 10px",
             }}>
-              ● E2E SECURE
+              <div style={{
+                width: 6, height: 6,
+                borderRadius: "50%",
+                background: C.green,
+                animation: "pulse 2.5s ease infinite",
+              }} />
+              <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>E2E Secure</span>
             </div>
           )}
         </div>
-
+ 
+        {/* Right: Time + sign out */}
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 9, color: C.mutedText, letterSpacing: "0.1em", fontFamily: FONT_TITLE }}>
+          <span style={{
+            fontSize: 12,
+            color: C.inkFaint,
+            fontFamily: FONT_MONO,
+          }}>
             {time.toLocaleTimeString("en-US", { hour12: false })}
           </span>
-          <button
-            onClick={onLogout}
-            style={{
-              background: "transparent",
-              border: `1px solid ${C.border}`,
-              color: C.mutedText,
-              padding: "4px 10px",
-              fontSize: 9,
-              fontFamily: FONT_MONO,
-              letterSpacing: "0.15em",
-              cursor: "pointer",
-            }}
-          >
-            SIGN OUT
+          <button onClick={onLogout} className="signout-btn">
+            Sign out
           </button>
         </div>
       </div>
-
+ 
       {/* ── CRYPTO INFO STRIP ── */}
       {myPubKeyHex && (
         <div style={{
-          background: C.bg,
+          background: C.paperDark,
           borderBottom: `1px solid ${C.border}`,
-          padding: "6px 16px",
+          padding: "6px 20px",
           display: "flex",
-          gap: 24,
+          gap: 28,
           flexShrink: 0,
           overflowX: "auto",
+          alignItems: "center",
         }}>
           {[
-            ["MY PUBKEY (P-256)", myPubKeyHex.slice(0, 44) + "…"],
-            peerPubKeyHex ? [`${peer.toUpperCase()} PUBKEY`, peerPubKeyHex.slice(0, 44) + "…"] : null,
-            ["CIPHER", "AES-256-GCM"],
-            ["AUTH", "SHA-256 SALTED"],
+            ["My pubkey (P-256)", myPubKeyHex.slice(0, 44) + "…"],
+            peerPubKeyHex ? [`${peer.charAt(0).toUpperCase() + peer.slice(1)}'s pubkey`, peerPubKeyHex.slice(0, 44) + "…"] : null,
+            ["Cipher", "AES-256-GCM"],
+            ["Auth", "SHA-256 salted"],
           ].filter(Boolean).map(([label, val]) => (
-            <div key={label} style={{ flexShrink: 0 }}>
-              <div style={{ fontSize: 8, color: C.mutedText, letterSpacing: "0.15em", marginBottom: 2 }}>{label}</div>
-              <div style={{
-                fontSize: 9,
-                color: label === "CIPHER" ? C.green : label === "AUTH" ? C.amber : C.amberDim,
-                letterSpacing: "0.04em",
-                maxWidth: 220,
+            <div key={label} style={{ flexShrink: 0, display: "flex", gap: 8, alignItems: "baseline" }}>
+              <span style={{ fontSize: 10, color: C.inkFaint }}>{label}</span>
+              <span style={{
+                fontSize: 10,
+                color: label === "Cipher" ? C.green : label === "Auth" ? C.accent : C.inkLight,
+                fontFamily: FONT_MONO,
+                maxWidth: 200,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
-              }}>{val}</div>
+              }}>{val}</span>
             </div>
           ))}
         </div>
       )}
-
+ 
       {/* ── WAITING OVERLAY ── */}
       {!ready && (
         <div style={{
           position: "fixed", inset: 0,
-          background: "rgba(6,6,10,0.93)",
+          background: "rgba(247,243,238,0.92)",
           display: "flex", flexDirection: "column",
           alignItems: "center", justifyContent: "center",
-          gap: 20, zIndex: 40,
+          gap: 16, zIndex: 40,
+          backdropFilter: "blur(2px)",
         }}>
           <div style={{
-            width: 36, height: 36,
+            width: 32, height: 32,
             border: `2px solid ${C.border}`,
-            borderTopColor: C.amber,
+            borderTopColor: C.ink,
             borderRadius: "50%",
-            animation: "spin 0.9s linear infinite",
+            animation: "spin 0.8s linear infinite",
           }} />
-          <div style={{ fontFamily: FONT_TITLE, fontSize: 11, color: C.amber, letterSpacing: "0.2em" }}>
+          <div style={{
+            fontFamily: FONT_SANS,
+            fontSize: 15,
+            fontWeight: 500,
+            color: C.ink,
+          }}>
             {status}
           </div>
           <div style={{
-            fontSize: 10, color: C.mutedText, maxWidth: 320,
-            textAlign: "center", lineHeight: 1.8, letterSpacing: "0.08em",
+            fontSize: 13, color: C.inkLight, maxWidth: 320,
+            textAlign: "center", lineHeight: 1.7,
           }}>
-            OPEN A SECOND BROWSER WINDOW · LOG IN AS{" "}
-            <span style={{ color: userColor[peer] }}>{peer.toUpperCase()}</span>{" "}
-            · ECDH HANDSHAKE WILL COMPLETE AUTOMATICALLY
+            Open a second browser window · Log in as{" "}
+            <span style={{ color: userColor[peer], fontWeight: 500 }}>
+              {peer.charAt(0).toUpperCase() + peer.slice(1)}
+            </span>{" "}
+            · ECDH handshake will complete automatically.
           </div>
         </div>
       )}
-
+ 
       {/* ── MESSAGE AREA ── */}
       <div style={{
         flex: 1, overflowY: "auto",
-        padding: "16px",
-        display: "flex", flexDirection: "column", gap: 8,
+        padding: "20px 24px",
+        display: "flex", flexDirection: "column", gap: 6,
+        background: C.paper,
       }}>
         {/* Channel header */}
         <div style={{
-          textAlign: "center", fontSize: 9,
-          color: C.mutedText, letterSpacing: "0.18em",
-          padding: "8px 0 12px",
-          borderBottom: `1px solid ${C.border}`,
-          marginBottom: 4,
+          textAlign: "center",
+          margin: "0 0 16px",
         }}>
-          {ready
-            ? `◈  CHANNEL SECURE  ·  ONLY ${username.toUpperCase()} & ${peer.toUpperCase()} CAN DECRYPT  ·  ◈`
-            : status}
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 10,
+            background: "white",
+            border: `1px solid ${C.border}`,
+            borderRadius: 20,
+            padding: "6px 16px",
+          }}>
+            {ready ? (
+              <>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.green }} />
+                <span style={{ fontSize: 11, color: C.inkLight }}>
+                  Channel secure — only {username} & {peer} can decrypt
+                </span>
+              </>
+            ) : (
+              <span style={{ fontSize: 11, color: C.inkLight }}>{status}</span>
+            )}
+          </div>
         </div>
-
-        {messages.map((m, idx) => {
+ 
+        {messages.map((m) => {
           const isMine = m.from === username;
           const color = userColor[m.from];
+          const bg = userBg[m.from];
           return (
-            <div key={m.id} className="msg-in" style={{
+            <div key={m.id} className="msg-row" style={{
               display: "flex",
               flexDirection: "column",
               alignItems: isMine ? "flex-end" : "flex-start",
-              gap: 3,
+              gap: 4,
             }}>
-              {/* Packet header */}
+              {/* Meta */}
               <div style={{
                 display: "flex", gap: 8, alignItems: "center",
                 flexDirection: isMine ? "row-reverse" : "row",
               }}>
-                <span style={{ fontSize: 8, color, letterSpacing: "0.18em" }}>
-                  {m.from.toUpperCase()}
-                </span>
-                <span style={{ fontSize: 8, color: C.mutedText }}>
-                  {new Date(m.ts).toLocaleTimeString("en-US", { hour12: false })}
+                <div style={{
+                  width: 22, height: 22, borderRadius: "50%",
+                  background: bg,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 10, fontWeight: 500, color,
+                }}>
+                  {initials(m.from)}
+                </div>
+                <span style={{ fontSize: 11, color: C.inkFaint }}>
+                  {new Date(m.ts).toLocaleTimeString("en-US", { hour12: true, hour: "numeric", minute: "2-digit" })}
                 </span>
                 <span
                   style={{
-                    fontSize: 8, color: C.amberDim,
-                    background: "#0C0C12",
+                    fontSize: 10,
+                    color: C.inkFaint,
+                    background: C.paperDark,
                     border: `1px solid ${C.border}`,
-                    padding: "1px 5px",
-                    letterSpacing: "0.05em",
-                    cursor: "pointer",
+                    borderRadius: 4,
+                    padding: "1px 6px",
+                    fontFamily: FONT_MONO,
+                    cursor: "default",
                   }}
                   title={`IV: ${m.iv}\nCiphertext: ${m.ciphertext}`}
                 >
@@ -875,17 +917,18 @@ function ChatScreen({ username, onLogout }) {
               </div>
               {/* Bubble */}
               <div style={{
-                background: isMine ? "#111020" : C.bgPanel,
-                border: `1px solid ${isMine ? "#2A2050" : C.border}`,
-                borderLeft: !isMine ? `3px solid ${color}` : `1px solid #2A2050`,
-                borderRight: isMine ? `3px solid ${color}` : `1px solid ${C.border}`,
-                padding: "9px 14px",
-                fontSize: 13,
-                color: "#D8D8E8",
+                background: isMine ? "white" : C.paper,
+                border: `1px solid ${isMine ? C.border : C.paperDeep}`,
+                borderLeft: !isMine ? `3px solid ${color}` : undefined,
+                borderRight: isMine ? `3px solid ${color}` : undefined,
+                borderRadius: 10,
+                padding: "10px 14px",
+                fontSize: 14,
+                color: C.ink,
                 maxWidth: 520,
-                lineHeight: 1.55,
+                lineHeight: 1.6,
                 wordBreak: "break-word",
-                letterSpacing: "0.02em",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
               }}>
                 {m.text}
               </div>
@@ -894,84 +937,68 @@ function ChatScreen({ username, onLogout }) {
         })}
         <div ref={bottomRef} />
       </div>
-
+ 
       {/* ── INPUT AREA ── */}
       <div style={{
         borderTop: `1px solid ${C.border}`,
-        background: C.bgPanel,
-        padding: "10px 14px",
+        background: "white",
+        padding: "12px 20px",
         display: "flex", gap: 10,
         flexShrink: 0,
         alignItems: "center",
       }}>
-        {/* Encryption indicator */}
-        <div style={{
-          fontSize: 8, color: ready ? C.green : C.mutedText,
-          letterSpacing: "0.15em", flexShrink: 0,
-          writingMode: "initial",
-        }}>
-          {ready ? "🔒" : "○"}
+        {/* Lock icon */}
+        <div style={{ flexShrink: 0 }}>
+          {ready ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="2" y="7" width="12" height="8" rx="2" fill={C.green} opacity="0.15" stroke={C.green} strokeWidth="1.3"/>
+              <path d="M5 7V5a3 3 0 016 0v2" stroke={C.green} strokeWidth="1.3" strokeLinecap="round"/>
+              <circle cx="8" cy="11" r="1" fill={C.green}/>
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="2" y="7" width="12" height="8" rx="2" stroke={C.inkFaint} strokeWidth="1.3"/>
+              <path d="M5 7V5a3 3 0 016 0v2" stroke={C.inkFaint} strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+          )}
         </div>
-
+ 
         <input
           type="text"
           placeholder={
             ready
-              ? `TRANSMIT TO ${peer.toUpperCase()} [AES-256-GCM]…`
-              : "AWAITING PEER CONNECTION…"
+              ? `Message ${peer.charAt(0).toUpperCase() + peer.slice(1)} — encrypted with AES-256-GCM`
+              : "Waiting for peer connection…"
           }
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && sendMessage()}
           disabled={!ready}
-          style={{
-            flex: 1,
-            background: C.bgInput,
-            border: `1px solid ${ready ? C.borderLit : C.border}`,
-            color: C.amber,
-            padding: "10px 14px",
-            fontSize: 12,
-            fontFamily: FONT_MONO,
-            letterSpacing: "0.06em",
-            outline: "none",
-            opacity: ready ? 1 : 0.4,
-          }}
+          className="msg-input"
         />
         <button
           onClick={sendMessage}
           disabled={!ready}
-          style={{
-            background: ready ? C.amber : C.amberDim,
-            border: "none",
-            color: C.bg,
-            padding: "10px 18px",
-            fontSize: 10,
-            fontFamily: FONT_TITLE,
-            fontWeight: 700,
-            letterSpacing: "0.2em",
-            cursor: ready ? "pointer" : "not-allowed",
-            flexShrink: 0,
-            transition: "background 0.15s",
-          }}
+          className="send-btn"
         >
-          SEND →
+          Send →
         </button>
       </div>
     </div>
   );
 }
-
+ 
 // ─────────────────────────────────────────────
 // 🚀 APP ROOT
 // ─────────────────────────────────────────────
 export default function App() {
   const [username, setUsername] = useState(null);
-
+ 
   function handleLogout() {
     if (username) set(ref(db, `keys/${username}`), null);
     setUsername(null);
   }
-
+ 
   if (!username) return <LoginScreen onLogin={setUsername} />;
   return <ChatScreen username={username} onLogout={handleLogout} />;
 }
