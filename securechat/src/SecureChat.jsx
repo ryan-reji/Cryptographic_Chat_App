@@ -1,27 +1,8 @@
 // CryptChat.jsx — End-to-End Encrypted Chat with ECDH + AES-GCM + SHA-256
-// Deploy on Vercel: just drop this into a Next.js or Vite React project.
-// Requires Firebase (Realtime Database) for message relay.
-//
-// SETUP:
-//  1. Create a Firebase project → enable Realtime Database (test mode initially)
-//  2. Replace the firebaseConfig below with your project's config
-//  3. npm install firebase
-//  4. Deploy to Vercel
- 
 import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
-import {
-  getDatabase,
-  ref,
-  push,
-  onValue,
-  set,
-  get,
-} from "firebase/database";
+import { getDatabase, ref, push, onValue, set, get } from "firebase/database";
  
-// ─────────────────────────────────────────────
-// 🔥 FIREBASE CONFIG — replace with your own!
-// ─────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyCf-1oBpg1bWJwYhJxX7GGyYs7vBlzFOqk",
   authDomain: "crpytchat.firebaseapp.com",
@@ -35,17 +16,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
  
-// ─────────────────────────────────────────────
-// 👥 USERS
-// ─────────────────────────────────────────────
-const USERS = {
-  alice: "alice_password_123",
-  bob: "bob_password_456",
-};
+const USERS = { alice: "alice_password_123", bob: "bob_password_456" };
  
-// ─────────────────────────────────────────────
-// 🔐 CRYPTOGRAPHY LAYER
-// ─────────────────────────────────────────────
 async function hashPassword(password, saltHex) {
   const enc = new TextEncoder();
   const saltBytes = hexToBytes(saltHex);
@@ -56,163 +28,126 @@ async function hashPassword(password, saltHex) {
   const digest = await crypto.subtle.digest("SHA-256", combined);
   return bytesToHex(new Uint8Array(digest));
 }
- 
 async function verifyPassword(password, saltHex, storedHash) {
-  const hash = await hashPassword(password, saltHex);
-  return hash === storedHash;
+  return (await hashPassword(password, saltHex)) === storedHash;
 }
- 
 async function generateECDHKeypair() {
-  return crypto.subtle.generateKey(
-    { name: "ECDH", namedCurve: "P-256" },
-    true,
-    ["deriveKey"]
-  );
+  return crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]);
 }
- 
 async function exportPublicKey(keypair) {
   const raw = await crypto.subtle.exportKey("raw", keypair.publicKey);
   return bytesToHex(new Uint8Array(raw));
 }
- 
 async function deriveSharedAESKey(privateKey, peerPublicKeyHex) {
-  const peerRaw = hexToBytes(peerPublicKeyHex);
-  const peerPublicKey = await crypto.subtle.importKey(
-    "raw",
-    peerRaw,
-    { name: "ECDH", namedCurve: "P-256" },
-    false,
-    []
-  );
-  return crypto.subtle.deriveKey(
-    { name: "ECDH", public: peerPublicKey },
-    privateKey,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"]
-  );
+  const peerPublicKey = await crypto.subtle.importKey("raw", hexToBytes(peerPublicKeyHex), { name: "ECDH", namedCurve: "P-256" }, false, []);
+  return crypto.subtle.deriveKey({ name: "ECDH", public: peerPublicKey }, privateKey, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
- 
 async function encryptMessage(text, aesKey) {
-  const enc = new TextEncoder();
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    aesKey,
-    enc.encode(text)
-  );
-  return {
-    iv: bytesToHex(iv),
-    ciphertext: bytesToHex(new Uint8Array(ciphertext)),
-  };
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, aesKey, new TextEncoder().encode(text));
+  return { iv: bytesToHex(iv), ciphertext: bytesToHex(new Uint8Array(ciphertext)) };
 }
- 
 async function decryptMessage(ivHex, ciphertextHex, aesKey) {
   try {
-    const iv = hexToBytes(ivHex);
-    const ciphertext = hexToBytes(ciphertextHex);
-    const plaintext = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv },
-      aesKey,
-      ciphertext
-    );
+    const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: hexToBytes(ivHex) }, aesKey, hexToBytes(ciphertextHex));
     return new TextDecoder().decode(plaintext);
-  } catch {
-    return "[DECRYPTION FAILED]";
-  }
+  } catch { return "[DECRYPTION FAILED]"; }
 }
+function bytesToHex(bytes) { return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join(""); }
+function hexToBytes(hex) { const a = new Uint8Array(hex.length / 2); for (let i = 0; i < a.length; i++) a[i] = parseInt(hex.slice(i*2,i*2+2),16); return a; }
+function randomHex(bytes = 16) { return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes))); }
  
-function bytesToHex(bytes) {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
- 
-function hexToBytes(hex) {
-  const arr = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < arr.length; i++)
-    arr[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  return arr;
-}
- 
-function randomHex(bytes = 16) {
-  if (typeof crypto === "undefined" || !crypto.getRandomValues) return "";
-  return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes)));
-}
- 
-// ─────────────────────────────────────────────
-// 📦 PERSISTENT STORAGE
-// ─────────────────────────────────────────────
-const DB_NAME = "SecureChatStore";
-const STORE_NAME = "KeyPairs";
- 
+const DB_NAME = "SecureChatStore", STORE_NAME = "KeyPairs";
 async function saveKeyLocally(username, keypair) {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(STORE_NAME))
-        request.result.createObjectStore(STORE_NAME);
-    };
-    request.onsuccess = () => {
-      const d = request.result;
-      const tx = d.transaction(STORE_NAME, "readwrite");
-      tx.objectStore(STORE_NAME).put(keypair, username);
-      tx.oncomplete = () => resolve();
-    };
-    request.onerror = () => reject(request.error);
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains(STORE_NAME)) req.result.createObjectStore(STORE_NAME); };
+    req.onsuccess = () => { const tx = req.result.transaction(STORE_NAME, "readwrite"); tx.objectStore(STORE_NAME).put(keypair, username); tx.oncomplete = resolve; };
+    req.onerror = () => reject(req.error);
   });
 }
- 
 async function getLocalKey(username) {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === "undefined") return resolve(null);
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(STORE_NAME))
-        request.result.createObjectStore(STORE_NAME);
-    };
-    request.onsuccess = () => {
-      const d = request.result;
-      const tx = d.transaction(STORE_NAME, "readonly");
-      const getReq = tx.objectStore(STORE_NAME).get(username);
-      getReq.onsuccess = () => resolve(getReq.result);
-    };
-    request.onerror = () => reject(request.error);
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains(STORE_NAME)) req.result.createObjectStore(STORE_NAME); };
+    req.onsuccess = () => { const gr = req.result.transaction(STORE_NAME,"readonly").objectStore(STORE_NAME).get(username); gr.onsuccess = () => resolve(gr.result); };
+    req.onerror = () => reject(req.error);
   });
 }
  
-// ─────────────────────────────────────────────
-// 🎨 DESIGN TOKENS — Warm Editorial / Paper
-// ─────────────────────────────────────────────
-const C = {
-  paper:      "#F7F3EE",
-  paperDark:  "#EDE8E0",
-  paperDeep:  "#E0D9CE",
-  ink:        "#1C1917",
-  inkMid:     "#44403C",
-  inkLight:   "#78716C",
-  inkFaint:   "#A8A29E",
-  border:     "#D6CFC4",
-  borderDark: "#B5ADA2",
-  alice:      "#7C3AED",   // violet
-  aliceBg:    "#EDE9FE",
-  bob:        "#0369A1",   // slate blue
-  bobBg:      "#E0F2FE",
-  accent:     "#92400E",   // warm brown
-  accentBg:   "#FEF3C7",
-  green:      "#15803D",
-  greenBg:    "#DCFCE7",
-  red:        "#B91C1C",
-  redBg:      "#FEE2E2",
-};
+const GLOBAL_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --np:#FF2D78;--nc:#00F5FF;--npu:#BF00FF;--nl:#AAFF00;
+  --dark:#060410;--dark2:#0D0820;--dark3:#130B2B;
+  --glass:rgba(255,255,255,0.04);--gb:rgba(255,255,255,0.12);--gs:rgba(255,255,255,0.08);
+}
+@keyframes float{0%,100%{transform:translateY(0) rotate(0)}33%{transform:translateY(-18px) rotate(2deg)}66%{transform:translateY(-8px) rotate(-1deg)}}
+@keyframes spin-slow{to{transform:rotate(360deg)}}
+@keyframes spin-rev{to{transform:rotate(-360deg)}}
+@keyframes pulse-ring{0%{transform:scale(.95);opacity:1}70%{transform:scale(1.4);opacity:0}100%{transform:scale(.95);opacity:0}}
+@keyframes glitch-1{0%,100%{clip-path:inset(0 0 100% 0);transform:translate(0)}10%{clip-path:inset(15% 0 60% 0);transform:translate(-4px,0)}20%{clip-path:inset(40% 0 30% 0);transform:translate(4px,0)}30%{clip-path:inset(70% 0 5% 0);transform:translate(-2px,0)}40%{clip-path:inset(0 0 100% 0)}}
+@keyframes glitch-2{0%,100%{clip-path:inset(0 0 100% 0);transform:translate(0)}15%{clip-path:inset(60% 0 20% 0);transform:translate(4px,0)}35%{clip-path:inset(10% 0 70% 0);transform:translate(-4px,0)}45%{clip-path:inset(0 0 100% 0)}}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes fadeSlideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes scanline-move{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+@keyframes grid-pulse{0%,100%{opacity:.3}50%{opacity:.6}}
+@keyframes orb-1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(80px,-60px) scale(1.2)}66%{transform:translate(-40px,80px) scale(.9)}}
+@keyframes orb-2{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(-70px,50px) scale(.8)}66%{transform:translate(60px,-80px) scale(1.3)}}
+@keyframes orb-3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(50px,50px) scale(1.1)}}
+.cc-bg{background:var(--dark);min-height:100vh;position:relative;overflow:hidden;font-family:'Space Grotesk',sans-serif;}
+.cc-grid{position:fixed;inset:0;pointer-events:none;z-index:0;background-image:linear-gradient(rgba(0,245,255,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,255,.06) 1px,transparent 1px);background-size:48px 48px;animation:grid-pulse 4s ease infinite;}
+.cc-scanline{position:fixed;left:0;right:0;height:120px;pointer-events:none;z-index:2;background:linear-gradient(transparent,rgba(0,245,255,.03),transparent);animation:scanline-move 6s linear infinite;}
+.cc-orb{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none;z-index:0;}
+.glass-card{background:var(--glass);border:1px solid var(--gb);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);}
+.neon-text-cyan{color:var(--nc);text-shadow:0 0 20px rgba(0,245,255,.6);}
+.glitch-title{position:relative;}
+.glitch-title::before{content:attr(data-text);position:absolute;inset:0;color:var(--nc);animation:glitch-1 5s infinite;opacity:.7;}
+.glitch-title::after{content:attr(data-text);position:absolute;inset:0;color:var(--np);animation:glitch-2 5s infinite .1s;opacity:.7;}
+.cc-input{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--gb);border-radius:10px;color:#fff;padding:11px 14px;font-size:14px;font-family:'Space Grotesk',sans-serif;outline:none;transition:border-color .2s,box-shadow .2s;}
+.cc-input:focus{border-color:var(--nc);box-shadow:0 0 0 3px rgba(0,245,255,.15),inset 0 0 20px rgba(0,245,255,.05);}
+.cc-input::placeholder{color:rgba(255,255,255,.25);}
+select.cc-input{appearance:none;cursor:pointer;}
+select.cc-input option{background:#130B2B;color:white;}
+.cc-btn-primary{width:100%;background:linear-gradient(135deg,var(--np),var(--npu));border:none;border-radius:10px;color:white;padding:12px 0;font-size:14px;font-family:'Space Grotesk',sans-serif;font-weight:600;cursor:pointer;letter-spacing:.04em;position:relative;overflow:hidden;transition:transform .1s,opacity .15s;}
+.cc-btn-primary::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.2),transparent);opacity:0;transition:opacity .2s;}
+.cc-btn-primary:hover::before{opacity:1;}
+.cc-btn-primary:active{transform:scale(.98);}
+.cc-btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.cc-send-btn{background:linear-gradient(135deg,var(--nc),#0066FF);border:none;border-radius:10px;color:#000;padding:0 22px;height:44px;font-size:13px;font-family:'Space Grotesk',sans-serif;font-weight:700;cursor:pointer;white-space:nowrap;transition:transform .1s,opacity .15s;flex-shrink:0;}
+.cc-send-btn:hover{opacity:.9;}
+.cc-send-btn:active{transform:scale(.97);}
+.cc-send-btn:disabled{opacity:.3;cursor:not-allowed;}
+.cc-msg{animation:fadeSlideUp .2s ease both;}
+.ticker-wrap{overflow:hidden;white-space:nowrap;border-top:1px solid rgba(0,245,255,.15);border-bottom:1px solid rgba(0,245,255,.15);background:rgba(0,245,255,.04);padding:6px 0;}
+.ticker-inner{display:inline-block;animation:marquee 20s linear infinite;}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:rgba(0,245,255,.3);border-radius:4px;}
+.signout-pill{background:rgba(255,255,255,.07);border:1px solid var(--gb);color:rgba(255,255,255,.6);padding:5px 14px;border-radius:20px;font-size:12px;font-family:'Space Grotesk',sans-serif;cursor:pointer;transition:background .15s,color .15s;}
+.signout-pill:hover{background:rgba(255,45,120,.15);color:var(--np);border-color:var(--np);}
+.secure-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(170,255,0,.08);border:1px solid rgba(170,255,0,.3);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--nl);font-weight:600;letter-spacing:.05em;}
+.secure-dot{width:6px;height:6px;border-radius:50%;background:var(--nl);box-shadow:0 0 8px var(--nl);animation:pulse-ring 2s ease infinite;}
+.crypto-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(191,0,255,.08);border:1px solid rgba(191,0,255,.25);border-radius:6px;padding:3px 10px;font-size:10px;font-family:'Space Mono',monospace;color:rgba(191,0,255,.9);flex-shrink:0;}
+.user-tag-alice{background:rgba(255,45,120,.12);border:1px solid rgba(255,45,120,.3);color:var(--np);border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600;}
+.user-tag-bob{background:rgba(0,245,255,.1);border:1px solid rgba(0,245,255,.3);color:var(--nc);border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600;}
+`;
  
-const FONT_SERIF  = "'Playfair Display', Georgia, serif";
-const FONT_SANS   = "'DM Sans', 'Helvetica Neue', sans-serif";
-const FONT_MONO   = "'JetBrains Mono', 'Fira Code', monospace";
+function BgEffects() {
+  return (
+    <>
+      <style>{GLOBAL_CSS}</style>
+      <div className="cc-grid" />
+      <div className="cc-scanline" />
+      <div className="cc-orb" style={{ width:500,height:500,background:"rgba(191,0,255,.15)",top:"-200px",left:"-100px",animation:"orb-1 12s ease infinite" }} />
+      <div className="cc-orb" style={{ width:400,height:400,background:"rgba(255,45,120,.12)",bottom:"-150px",right:"-100px",animation:"orb-2 15s ease infinite" }} />
+      <div className="cc-orb" style={{ width:300,height:300,background:"rgba(0,245,255,.08)",top:"40%",left:"60%",animation:"orb-3 10s ease infinite" }} />
+    </>
+  );
+}
  
-// ─────────────────────────────────────────────
-// 🔐 LOGIN SCREEN
-// ─────────────────────────────────────────────
 function LoginScreen({ onLogin }) {
   const [user, setUser] = useState("alice");
   const [pass, setPass] = useState("");
@@ -220,266 +155,73 @@ function LoginScreen({ onLogin }) {
   const [loading, setLoading] = useState(false);
  
   async function handleLogin() {
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const correctPass = USERS[user];
       if (!correctPass) { setError("Unknown operator ID."); setLoading(false); return; }
- 
       const userRef = ref(db, `users/${user}`);
       const snap = await get(userRef);
- 
       if (!snap.exists()) {
         const salt = randomHex(16);
-        const hash = await hashPassword(correctPass, salt);
-        await set(userRef, { salt, hash });
+        await set(userRef, { salt, hash: await hashPassword(correctPass, salt) });
         onLogin(user);
       } else {
         const { salt, hash } = snap.val();
-        const ok = await verifyPassword(pass, salt, hash);
-        if (ok) {
-          onLogin(user);
-        } else {
-          setError("Incorrect passphrase. Authentication denied.");
-        }
+        if (await verifyPassword(pass, salt, hash)) onLogin(user);
+        else setError("Wrong passphrase — access denied.");
       }
-    } catch (e) {
-      setError("System error: " + e.message);
-    }
+    } catch (e) { setError("System error: " + e.message); }
     setLoading(false);
   }
  
   return (
-    <div style={{
-      fontFamily: FONT_SANS,
-      background: C.paper,
-      minHeight: "100vh",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      position: "relative",
-    }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+    <div className="cc-bg" style={{ display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <BgEffects />
+      <div style={{ position:"absolute",width:600,height:600,borderRadius:"50%",border:"1px dashed rgba(0,245,255,.1)",animation:"spin-slow 30s linear infinite",pointerEvents:"none" }} />
+      <div style={{ position:"absolute",width:400,height:400,borderRadius:"50%",border:"1px dashed rgba(255,45,120,.1)",animation:"spin-rev 20s linear infinite",pointerEvents:"none" }} />
  
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes shimmer {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 0.9; }
-        }
- 
-        .login-card { animation: fadeUp 0.5s ease both; }
- 
-        .field-input {
-          width: 100%;
-          background: white;
-          border: 1.5px solid ${C.border};
-          color: ${C.ink};
-          padding: 11px 14px;
-          font-size: 14px;
-          font-family: ${FONT_SANS};
-          outline: none;
-          border-radius: 8px;
-          transition: border-color 0.15s, box-shadow 0.15s;
-          box-sizing: border-box;
-        }
-        .field-input:focus {
-          border-color: ${C.accent};
-          box-shadow: 0 0 0 3px ${C.accentBg};
-        }
-        .field-select {
-          appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2378716C' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 12px center;
-          cursor: pointer;
-        }
-        .auth-btn {
-          width: 100%;
-          background: ${C.ink};
-          border: none;
-          color: ${C.paper};
-          padding: 12px 0;
-          font-size: 13px;
-          font-family: ${FONT_SANS};
-          font-weight: 500;
-          letter-spacing: 0.06em;
-          cursor: pointer;
-          border-radius: 8px;
-          transition: background 0.15s, transform 0.1s;
-        }
-        .auth-btn:hover { background: ${C.inkMid}; }
-        .auth-btn:active { transform: scale(0.99); }
-        .auth-btn:disabled { background: ${C.inkFaint}; cursor: not-allowed; }
- 
-        select option { background: white; color: ${C.ink}; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: ${C.paper}; }
-        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }
-      `}</style>
- 
-      {/* Subtle ruled-paper lines in background */}
-      <div style={{
-        position: "fixed", inset: 0, pointerEvents: "none",
-        backgroundImage: `repeating-linear-gradient(transparent, transparent 27px, ${C.paperDeep} 27px, ${C.paperDeep} 28px)`,
-        opacity: 0.5,
-      }} />
- 
-      {/* Left margin line */}
-      <div style={{
-        position: "fixed", left: "12%", top: 0, bottom: 0, width: 1,
-        background: `${C.alice}30`, pointerEvents: "none",
-      }} />
- 
-      <div className="login-card" style={{
-        width: 380,
-        background: "white",
-        border: `1.5px solid ${C.border}`,
-        borderRadius: 16,
-        overflow: "hidden",
-        boxShadow: `0 2px 0 ${C.paperDeep}, 0 4px 0 ${C.border}, 0 20px 60px rgba(0,0,0,0.08)`,
-        position: "relative",
-        zIndex: 1,
-      }}>
-        {/* Colored top stripe */}
-        <div style={{
-          height: 4,
-          background: `linear-gradient(90deg, ${C.alice} 0%, ${C.bob} 100%)`,
-        }} />
- 
-        <div style={{ padding: "32px 32px 36px" }}>
-          {/* Logo */}
-          <div style={{ marginBottom: 32 }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 10, marginBottom: 6,
-            }}>
-              <div style={{
-                width: 32, height: 32,
-                background: C.ink,
-                borderRadius: 8,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <rect x="2" y="4" width="12" height="9" rx="2" stroke="white" strokeWidth="1.5"/>
-                  <path d="M5 4V3a3 3 0 016 0v1" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-                  <circle cx="8" cy="8.5" r="1.5" fill="white"/>
-                  <path d="M8 10v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
+      <div className="glass-card" style={{ width:380,borderRadius:20,overflow:"hidden",position:"relative",zIndex:10 }}>
+        <div style={{ height:3,background:"linear-gradient(90deg,#FF2D78,#BF00FF,#00F5FF,#AAFF00,#FF2D78)",backgroundSize:"200% 100%",animation:"marquee 3s linear infinite" }} />
+        <div style={{ padding:"32px 28px 36px" }}>
+          <div style={{ marginBottom:32,textAlign:"center" }}>
+            <div style={{ marginBottom:8,position:"relative",display:"inline-block" }}>
+              <div className="glitch-title" data-text="CRYPTCHAT" style={{ fontFamily:"'Space Mono',monospace",fontSize:36,fontWeight:700,color:"white",letterSpacing:".08em",position:"relative",zIndex:1 }}>
+                CRYPTCHAT
               </div>
-              <span style={{
-                fontFamily: FONT_SERIF,
-                fontSize: 22,
-                fontWeight: 600,
-                color: C.ink,
-                letterSpacing: "-0.02em",
-              }}>
-                CryptChat
-              </span>
             </div>
-            <p style={{
-              fontSize: 12,
-              color: C.inkLight,
-              margin: 0,
-              fontFamily: FONT_MONO,
-              letterSpacing: "0.02em",
-            }}>
-              ECDH P-256 · AES-256-GCM · SHA-256
-            </p>
+            <div style={{ display:"flex",justifyContent:"center",gap:6,flexWrap:"wrap" }}>
+              {["ECDH P-256","AES-256-GCM","SHA-256"].map(t => <span key={t} className="crypto-chip">{t}</span>)}
+            </div>
           </div>
  
-          {/* Error */}
           {error && (
-            <div style={{
-              background: C.redBg,
-              border: `1px solid #FECACA`,
-              borderLeft: `3px solid ${C.red}`,
-              borderRadius: 8,
-              padding: "10px 14px",
-              fontSize: 13,
-              color: C.red,
-              marginBottom: 20,
-              lineHeight: 1.5,
-            }}>
-              {error}
+            <div style={{ background:"rgba(255,45,120,.1)",border:"1px solid rgba(255,45,120,.4)",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#FF8FAD",marginBottom:20,lineHeight:1.5 }}>
+              ⚠ {error}
             </div>
           )}
  
-          {/* Operator ID */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{
-              display: "block",
-              fontSize: 11,
-              fontWeight: 500,
-              color: C.inkLight,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              marginBottom: 6,
-            }}>
-              Operator
-            </label>
-            <select
-              className="field-input field-select"
-              value={user}
-              onChange={e => setUser(e.target.value)}
-            >
-              <option value="alice">Alice</option>
-              <option value="bob">Bob</option>
+          <div style={{ marginBottom:14 }}>
+            <label style={{ display:"block",fontSize:11,fontWeight:600,color:"rgba(255,255,255,.4)",letterSpacing:".12em",textTransform:"uppercase",marginBottom:6 }}>Operator ID</label>
+            <select className="cc-input" value={user} onChange={e => setUser(e.target.value)}>
+              <option value="alice">ALICE</option>
+              <option value="bob">BOB</option>
             </select>
           </div>
  
-          {/* Passphrase */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={{
-              display: "block",
-              fontSize: 11,
-              fontWeight: 500,
-              color: C.inkLight,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              marginBottom: 6,
-            }}>
-              Passphrase
-            </label>
-            <input
-              type="password"
-              placeholder="Enter clearance code"
-              value={pass}
-              onChange={e => setPass(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleLogin()}
-              className="field-input"
-            />
+          <div style={{ marginBottom:24 }}>
+            <label style={{ display:"block",fontSize:11,fontWeight:600,color:"rgba(255,255,255,.4)",letterSpacing:".12em",textTransform:"uppercase",marginBottom:6 }}>Passphrase</label>
+            <input type="password" placeholder="Enter clearance code…" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()} className="cc-input" />
           </div>
  
-          {/* Auth button */}
-          <button
-            onClick={handleLogin}
-            disabled={loading}
-            className="auth-btn"
-          >
-            {loading ? "Authenticating…" : "Sign in →"}
+          <button onClick={handleLogin} disabled={loading} className="cc-btn-primary">
+            {loading ? "AUTHENTICATING…" : "INITIATE SECURE SESSION →"}
           </button>
  
-          {/* Crypto footer */}
-          <div style={{
-            marginTop: 24,
-            paddingTop: 20,
-            borderTop: `1px solid ${C.border}`,
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "8px 20px",
-          }}>
-            {[
-              ["Auth", "SHA-256 salted"],
-              ["Key exchange", "ECDH P-256"],
-              ["Cipher", "AES-256-GCM"],
-              ["IV", "96-bit random"],
-            ].map(([k, v]) => (
+          <div style={{ marginTop:24,paddingTop:20,borderTop:"1px solid rgba(255,255,255,.08)",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px 16px" }}>
+            {[["Auth","SHA-256 salted"],["Key exchange","ECDH P-256"],["Cipher","AES-256-GCM"],["IV size","96-bit random"]].map(([k,v]) => (
               <div key={k}>
-                <div style={{ fontSize: 10, color: C.inkFaint, marginBottom: 1 }}>{k}</div>
-                <div style={{ fontSize: 11, color: C.inkMid, fontFamily: FONT_MONO }}>{v}</div>
+                <div style={{ fontSize:10,color:"rgba(255,255,255,.3)",marginBottom:2 }}>{k}</div>
+                <div style={{ fontSize:11,fontFamily:"'Space Mono',monospace",color:"rgba(0,245,255,.7)" }}>{v}</div>
               </div>
             ))}
           </div>
@@ -489,9 +231,6 @@ function LoginScreen({ onLogin }) {
   );
 }
  
-// ─────────────────────────────────────────────
-// 💬 CHAT SCREEN
-// ─────────────────────────────────────────────
 function ChatScreen({ username, onLogout }) {
   const peer = username === "alice" ? "bob" : "alice";
   const [messages, setMessages] = useState([]);
@@ -505,431 +244,144 @@ function ChatScreen({ username, onLogout }) {
   const bottomRef = useRef(null);
   const [time, setTime] = useState(new Date());
  
-  const userColor = { alice: C.alice, bob: C.bob };
-  const userBg = { alice: C.aliceBg, bob: C.bobBg };
- 
-  useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+  useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
  
   useEffect(() => {
     (async () => {
       setStatus("Checking local key store…");
       let kp = await getLocalKey(username);
-      if (!kp) {
-        setStatus("Generating ECDH keypair…");
-        kp = await generateECDHKeypair();
-        await saveKeyLocally(username, kp);
-      } else {
-        setStatus("Persistent keypair loaded.");
-      }
+      if (!kp) { setStatus("Generating ECDH keypair…"); kp = await generateECDHKeypair(); await saveKeyLocally(username, kp); }
       keypairRef.current = kp;
       const pubHex = await exportPublicKey(kp);
       setMyPubKeyHex(pubHex);
       await set(ref(db, `keys/${username}`), { pubKey: pubHex, ts: Date.now() });
-      setStatus(`Awaiting peer (${peer})…`);
- 
-      const peerKeyRef = ref(db, `keys/${peer}`);
-      const unsub = onValue(peerKeyRef, async (snap) => {
+      setStatus(`Awaiting peer [${peer.toUpperCase()}]…`);
+      const unsub = onValue(ref(db, `keys/${peer}`), async snap => {
         if (!snap.exists()) return;
         const { pubKey } = snap.val();
         setPeerPubKeyHex(pubKey);
-        setStatus("Deriving shared channel…");
-        try {
-          const sharedKey = await deriveSharedAESKey(kp.privateKey, pubKey);
-          aesKeyRef.current = sharedKey;
-          setStatus("Secure channel established");
-          setReady(true);
-        } catch (e) {
-          setStatus("Key exchange failed: " + e.message);
-        }
+        setStatus("Deriving shared AES key…");
+        try { aesKeyRef.current = await deriveSharedAESKey(kp.privateKey, pubKey); setStatus("Secure channel established"); setReady(true); }
+        catch (e) { setStatus("Key exchange failed: " + e.message); }
       });
       return () => unsub();
     })();
   }, [username, peer]);
  
   useEffect(() => {
-    const msgsRef = ref(db, "messages");
-    const unsub = onValue(msgsRef, async (snap) => {
+    const unsub = onValue(ref(db, "messages"), async snap => {
       if (!snap.exists() || !aesKeyRef.current) return;
-      const raw = snap.val();
-      const arr = Object.entries(raw)
-        .map(([id, m]) => ({ id, ...m }))
-        .sort((a, b) => (a.ts || 0) - (b.ts || 0));
-      const decrypted = await Promise.all(
-        arr.map(async (m) => {
-          const text = await decryptMessage(m.iv, m.ciphertext, aesKeyRef.current);
-          return { ...m, text };
-        })
-      );
-      setMessages(decrypted);
+      const arr = Object.entries(snap.val()).map(([id,m]) => ({id,...m})).sort((a,b)=>(a.ts||0)-(b.ts||0));
+      setMessages(await Promise.all(arr.map(async m => ({ ...m, text: await decryptMessage(m.iv, m.ciphertext, aesKeyRef.current) }))));
     });
     return () => unsub();
   }, [ready]);
  
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
  
   async function sendMessage() {
     if (!input.trim() || !aesKeyRef.current) return;
-    const text = input.trim();
-    setInput("");
+    const text = input.trim(); setInput("");
     const { iv, ciphertext } = await encryptMessage(text, aesKeyRef.current);
-    await push(ref(db, "messages"), {
-      from: username,
-      iv,
-      ciphertext,
-      ts: Date.now(),
-    });
+    await push(ref(db, "messages"), { from: username, iv, ciphertext, ts: Date.now() });
   }
  
-  // Avatar initials
-  const initials = (name) => name[0].toUpperCase();
+  const uColors = { alice:"var(--np)", bob:"var(--nc)" };
+  const uClass = { alice:"user-tag-alice", bob:"user-tag-bob" };
+  const bBorder = { alice:"rgba(255,45,120,.4)", bob:"rgba(0,245,255,.4)" };
+  const bBg = { alice:"rgba(255,45,120,.06)", bob:"rgba(0,245,255,.06)" };
+  const tickerTxt = "⬡ CRYPTCHAT · ECDH P-256 · AES-256-GCM · SHA-256 SALTED · END-TO-END ENCRYPTED · NO PLAINTEXT STORED · ";
  
   return (
-    <div style={{
-      fontFamily: FONT_SANS,
-      background: C.paper,
-      width: "100vw",
-      height: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-    }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+    <div className="cc-bg" style={{ width:"100vw",height:"100vh",display:"flex",flexDirection:"column",overflow:"hidden" }}>
+      <BgEffects />
  
-        @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        @keyframes spin { to{transform:rotate(360deg)} }
-        @keyframes slideIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
- 
-        .msg-row { animation: slideIn 0.2s ease both; }
- 
-        .send-btn {
-          background: ${C.ink};
-          border: none;
-          color: white;
-          padding: 0 20px;
-          height: 42px;
-          font-size: 13px;
-          font-family: ${FONT_SANS};
-          font-weight: 500;
-          border-radius: 10px;
-          cursor: pointer;
-          transition: background 0.15s, transform 0.1s;
-          white-space: nowrap;
-        }
-        .send-btn:hover { background: ${C.inkMid}; }
-        .send-btn:active { transform: scale(0.98); }
-        .send-btn:disabled { background: ${C.inkFaint}; cursor: not-allowed; }
- 
-        .msg-input {
-          flex: 1;
-          background: white;
-          border: 1.5px solid ${C.border};
-          color: ${C.ink};
-          padding: 10px 14px;
-          font-size: 14px;
-          font-family: ${FONT_SANS};
-          outline: none;
-          border-radius: 10px;
-          transition: border-color 0.15s, box-shadow 0.15s;
-        }
-        .msg-input:focus {
-          border-color: ${C.accent};
-          box-shadow: 0 0 0 3px ${C.accentBg};
-        }
-        .msg-input:disabled { opacity: 0.5; cursor: not-allowed; }
- 
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }
- 
-        .signout-btn {
-          background: transparent;
-          border: 1px solid ${C.border};
-          color: ${C.inkLight};
-          padding: 5px 12px;
-          font-size: 12px;
-          font-family: ${FONT_SANS};
-          border-radius: 6px;
-          cursor: pointer;
-          transition: background 0.12s, color 0.12s;
-        }
-        .signout-btn:hover { background: ${C.paperDark}; color: ${C.ink}; }
-      `}</style>
- 
-      {/* ── TOPBAR ── */}
-      <div style={{
-        background: "white",
-        borderBottom: `1px solid ${C.border}`,
-        padding: "0 20px",
-        height: 56,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        flexShrink: 0,
-      }}>
-        {/* Left: Logo + participants */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{
-              width: 28, height: 28,
-              background: C.ink,
-              borderRadius: 7,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                <rect x="2" y="4" width="12" height="9" rx="2" stroke="white" strokeWidth="1.5"/>
-                <path d="M5 4V3a3 3 0 016 0v1" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-                <circle cx="8" cy="8.5" r="1.5" fill="white"/>
-                <path d="M8 10v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <span style={{
-              fontFamily: FONT_SERIF,
-              fontSize: 17,
-              fontWeight: 600,
-              color: C.ink,
-              letterSpacing: "-0.01em",
-            }}>
-              CryptChat
-            </span>
+      {!ready && (
+        <div style={{ position:"fixed",inset:0,background:"rgba(6,4,16,.88)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,zIndex:50,backdropFilter:"blur(8px)" }}>
+          <div style={{ width:60,height:60,position:"relative" }}>
+            <div style={{ position:"absolute",inset:0,borderRadius:"50%",border:"2px solid transparent",borderTopColor:"var(--nc)",animation:"spin-slow .8s linear infinite" }} />
+            <div style={{ position:"absolute",inset:8,borderRadius:"50%",border:"2px solid transparent",borderTopColor:"var(--np)",animation:"spin-rev 1.2s linear infinite" }} />
           </div>
- 
-          <div style={{ width: 1, height: 20, background: C.border }} />
- 
-          {/* Participants */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {[username, peer].map((u, i) => (
-              <div key={u} style={{ display: "flex", alignItems: "center", gap: i === 1 ? 0 : 6 }}>
-                {i === 1 && (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ marginRight: 6, color: C.inkFaint }}>
-                    <path d="M3 7h8M7.5 4l3.5 3-3.5 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
-                <div style={{
-                  width: 26, height: 26,
-                  borderRadius: "50%",
-                  background: userBg[u],
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: userColor[u],
-                  border: u === username ? `2px solid ${userColor[u]}` : `1px solid ${userColor[u]}40`,
-                }}>
-                  {initials(u)}
-                </div>
-                <span style={{
-                  fontSize: 13,
-                  color: u === username ? C.ink : C.inkLight,
-                  fontWeight: u === username ? 500 : 400,
-                }}>
-                  {u.charAt(0).toUpperCase() + u.slice(1)}
-                </span>
-              </div>
-            ))}
+          <div style={{ fontFamily:"'Space Mono',monospace",fontSize:14,color:"var(--nc)",letterSpacing:".1em" }}>{status}</div>
+          <div style={{ fontSize:13,color:"rgba(255,255,255,.4)",maxWidth:300,textAlign:"center",lineHeight:1.7 }}>
+            Open another browser window · Log in as{" "}
+            <span style={{ color:uColors[peer],fontWeight:600 }}>{peer.toUpperCase()}</span>{" "}
+            · ECDH handshake auto-completes
           </div>
- 
-          {ready && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 5,
-              background: C.greenBg,
-              border: `1px solid #BBF7D0`,
-              borderRadius: 20,
-              padding: "3px 10px",
-            }}>
-              <div style={{
-                width: 6, height: 6,
-                borderRadius: "50%",
-                background: C.green,
-                animation: "pulse 2.5s ease infinite",
-              }} />
-              <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>E2E Secure</span>
-            </div>
-          )}
         </div>
+      )}
  
-        {/* Right: Time + sign out */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{
-            fontSize: 12,
-            color: C.inkFaint,
-            fontFamily: FONT_MONO,
-          }}>
-            {time.toLocaleTimeString("en-US", { hour12: false })}
+      {/* Topbar */}
+      <div className="glass-card" style={{ padding:"0 20px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,zIndex:10,borderRadius:0,borderLeft:"none",borderRight:"none",borderTop:"none" }}>
+        <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+          <span style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:700,color:"white",letterSpacing:".1em" }}>
+            CRYPT<span className="neon-text-cyan">CHAT</span>
           </span>
-          <button onClick={onLogout} className="signout-btn">
-            Sign out
-          </button>
+          <div style={{ width:1,height:20,background:"var(--gb)" }} />
+          <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+            <span className={uClass[username]}>{username.toUpperCase()}</span>
+            <span style={{ color:"rgba(255,255,255,.3)",fontSize:12 }}>→</span>
+            <span className={uClass[peer]}>{peer.toUpperCase()}</span>
+          </div>
+          {ready && <span className="secure-badge"><span className="secure-dot" />E2E SECURE</span>}
+        </div>
+        <div style={{ display:"flex",alignItems:"center",gap:12 }}>
+          <span style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"rgba(0,245,255,.5)" }}>{time.toLocaleTimeString("en-US",{hour12:false})}</span>
+          <button onClick={onLogout} className="signout-pill">SIGN OUT</button>
         </div>
       </div>
  
-      {/* ── CRYPTO INFO STRIP ── */}
+      {/* Ticker */}
+      <div className="ticker-wrap" style={{ zIndex:10,flexShrink:0 }}>
+        <span className="ticker-inner" style={{ fontFamily:"'Space Mono',monospace",fontSize:10,color:"rgba(0,245,255,.5)",letterSpacing:".1em" }}>
+          {tickerTxt}{tickerTxt}
+        </span>
+      </div>
+ 
+      {/* Crypto info strip */}
       {myPubKeyHex && (
-        <div style={{
-          background: C.paperDark,
-          borderBottom: `1px solid ${C.border}`,
-          padding: "6px 20px",
-          display: "flex",
-          gap: 28,
-          flexShrink: 0,
-          overflowX: "auto",
-          alignItems: "center",
-        }}>
+        <div style={{ background:"rgba(0,0,0,.3)",borderBottom:"1px solid var(--gb)",padding:"6px 20px",display:"flex",gap:20,flexShrink:0,overflowX:"auto",alignItems:"center",zIndex:10 }}>
           {[
-            ["My pubkey (P-256)", myPubKeyHex.slice(0, 44) + "…"],
-            peerPubKeyHex ? [`${peer.charAt(0).toUpperCase() + peer.slice(1)}'s pubkey`, peerPubKeyHex.slice(0, 44) + "…"] : null,
-            ["Cipher", "AES-256-GCM"],
-            ["Auth", "SHA-256 salted"],
-          ].filter(Boolean).map(([label, val]) => (
-            <div key={label} style={{ flexShrink: 0, display: "flex", gap: 8, alignItems: "baseline" }}>
-              <span style={{ fontSize: 10, color: C.inkFaint }}>{label}</span>
-              <span style={{
-                fontSize: 10,
-                color: label === "Cipher" ? C.green : label === "Auth" ? C.accent : C.inkLight,
-                fontFamily: FONT_MONO,
-                maxWidth: 200,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}>{val}</span>
+            ["MY PUBKEY (P-256)", myPubKeyHex.slice(0,40)+"…"],
+            peerPubKeyHex ? [`${peer.toUpperCase()} PUBKEY`, peerPubKeyHex.slice(0,40)+"…"] : null,
+            ["CIPHER","AES-256-GCM"],
+            ["AUTH","SHA-256 SALTED"],
+          ].filter(Boolean).map(([k,v]) => (
+            <div key={k} style={{ flexShrink:0,display:"flex",gap:8,alignItems:"center" }}>
+              <span style={{ fontSize:9,color:"rgba(255,255,255,.25)",letterSpacing:".1em",fontFamily:"'Space Mono',monospace" }}>{k}</span>
+              <span style={{ fontSize:9,fontFamily:"'Space Mono',monospace",color:k==="CIPHER"?"var(--nl)":k==="AUTH"?"var(--np)":"rgba(0,245,255,.6)" }}>{v}</span>
             </div>
           ))}
         </div>
       )}
  
-      {/* ── WAITING OVERLAY ── */}
-      {!ready && (
-        <div style={{
-          position: "fixed", inset: 0,
-          background: "rgba(247,243,238,0.92)",
-          display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          gap: 16, zIndex: 40,
-          backdropFilter: "blur(2px)",
-        }}>
-          <div style={{
-            width: 32, height: 32,
-            border: `2px solid ${C.border}`,
-            borderTopColor: C.ink,
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }} />
-          <div style={{
-            fontFamily: FONT_SANS,
-            fontSize: 15,
-            fontWeight: 500,
-            color: C.ink,
-          }}>
-            {status}
-          </div>
-          <div style={{
-            fontSize: 13, color: C.inkLight, maxWidth: 320,
-            textAlign: "center", lineHeight: 1.7,
-          }}>
-            Open a second browser window · Log in as{" "}
-            <span style={{ color: userColor[peer], fontWeight: 500 }}>
-              {peer.charAt(0).toUpperCase() + peer.slice(1)}
-            </span>{" "}
-            · ECDH handshake will complete automatically.
-          </div>
-        </div>
-      )}
- 
-      {/* ── MESSAGE AREA ── */}
-      <div style={{
-        flex: 1, overflowY: "auto",
-        padding: "20px 24px",
-        display: "flex", flexDirection: "column", gap: 6,
-        background: C.paper,
-      }}>
-        {/* Channel header */}
-        <div style={{
-          textAlign: "center",
-          margin: "0 0 16px",
-        }}>
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 10,
-            background: "white",
-            border: `1px solid ${C.border}`,
-            borderRadius: 20,
-            padding: "6px 16px",
-          }}>
-            {ready ? (
-              <>
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.green }} />
-                <span style={{ fontSize: 11, color: C.inkLight }}>
-                  Channel secure — only {username} & {peer} can decrypt
-                </span>
-              </>
-            ) : (
-              <span style={{ fontSize: 11, color: C.inkLight }}>{status}</span>
-            )}
+      {/* Messages */}
+      <div style={{ flex:1,overflowY:"auto",padding:"20px",display:"flex",flexDirection:"column",gap:10,zIndex:5 }}>
+        <div style={{ textAlign:"center",marginBottom:8 }}>
+          <div style={{ display:"inline-block",background:"rgba(191,0,255,.08)",border:"1px solid rgba(191,0,255,.2)",borderRadius:20,padding:"6px 18px" }}>
+            <span style={{ fontSize:11,fontFamily:"'Space Mono',monospace",color:"rgba(191,0,255,.7)",letterSpacing:".08em" }}>
+              {ready ? `◈ CHANNEL SECURE · ONLY ${username.toUpperCase()} & ${peer.toUpperCase()} CAN DECRYPT ◈` : status}
+            </span>
           </div>
         </div>
  
-        {messages.map((m) => {
+        {messages.map(m => {
           const isMine = m.from === username;
-          const color = userColor[m.from];
-          const bg = userBg[m.from];
+          const col = uColors[m.from];
           return (
-            <div key={m.id} className="msg-row" style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: isMine ? "flex-end" : "flex-start",
-              gap: 4,
-            }}>
-              {/* Meta */}
-              <div style={{
-                display: "flex", gap: 8, alignItems: "center",
-                flexDirection: isMine ? "row-reverse" : "row",
-              }}>
-                <div style={{
-                  width: 22, height: 22, borderRadius: "50%",
-                  background: bg,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 10, fontWeight: 500, color,
-                }}>
-                  {initials(m.from)}
+            <div key={m.id} className="cc-msg" style={{ display:"flex",flexDirection:"column",alignItems:isMine?"flex-end":"flex-start",gap:4 }}>
+              <div style={{ display:"flex",gap:8,alignItems:"center",flexDirection:isMine?"row-reverse":"row" }}>
+                <div style={{ width:26,height:26,borderRadius:"50%",background:isMine?"rgba(255,45,120,.15)":"rgba(0,245,255,.1)",border:`1px solid ${col}55`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:col }}>
+                  {m.from[0].toUpperCase()}
                 </div>
-                <span style={{ fontSize: 11, color: C.inkFaint }}>
-                  {new Date(m.ts).toLocaleTimeString("en-US", { hour12: true, hour: "numeric", minute: "2-digit" })}
+                <span style={{ fontSize:11,color:"rgba(255,255,255,.3)",fontFamily:"'Space Mono',monospace" }}>
+                  {new Date(m.ts).toLocaleTimeString("en-US",{hour12:false})}
                 </span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    color: C.inkFaint,
-                    background: C.paperDark,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 4,
-                    padding: "1px 6px",
-                    fontFamily: FONT_MONO,
-                    cursor: "default",
-                  }}
-                  title={`IV: ${m.iv}\nCiphertext: ${m.ciphertext}`}
-                >
-                  IV:{m.iv.slice(0, 8)}
+                <span title={`IV: ${m.iv}\nCiphertext: ${m.ciphertext}`} style={{ fontSize:9,color:"rgba(255,255,255,.2)",background:"rgba(255,255,255,.04)",border:"1px solid rgba(255,255,255,.08)",borderRadius:4,padding:"1px 6px",fontFamily:"'Space Mono',monospace",cursor:"default" }}>
+                  IV:{m.iv.slice(0,8)}
                 </span>
               </div>
-              {/* Bubble */}
-              <div style={{
-                background: isMine ? "white" : C.paper,
-                border: `1px solid ${isMine ? C.border : C.paperDeep}`,
-                borderLeft: !isMine ? `3px solid ${color}` : undefined,
-                borderRight: isMine ? `3px solid ${color}` : undefined,
-                borderRadius: 10,
-                padding: "10px 14px",
-                fontSize: 14,
-                color: C.ink,
-                maxWidth: 520,
-                lineHeight: 1.6,
-                wordBreak: "break-word",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-              }}>
+              <div style={{ background:bBg[m.from],border:`1px solid ${bBorder[m.from]}`,borderLeft:!isMine?`3px solid ${col}`:undefined,borderRight:isMine?`3px solid ${col}`:undefined,borderRadius:12,padding:"10px 16px",fontSize:14,color:"rgba(255,255,255,.9)",maxWidth:520,lineHeight:1.6,wordBreak:"break-word" }}>
                 {m.text}
               </div>
             </div>
@@ -938,67 +390,32 @@ function ChatScreen({ username, onLogout }) {
         <div ref={bottomRef} />
       </div>
  
-      {/* ── INPUT AREA ── */}
-      <div style={{
-        borderTop: `1px solid ${C.border}`,
-        background: "white",
-        padding: "12px 20px",
-        display: "flex", gap: 10,
-        flexShrink: 0,
-        alignItems: "center",
-      }}>
-        {/* Lock icon */}
-        <div style={{ flexShrink: 0 }}>
+      {/* Input */}
+      <div className="glass-card" style={{ padding:"12px 18px",display:"flex",gap:10,flexShrink:0,alignItems:"center",zIndex:10,borderRadius:0,borderLeft:"none",borderRight:"none",borderBottom:"none" }}>
+        <div style={{ flexShrink:0,width:16,height:16 }}>
           {ready ? (
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="2" y="7" width="12" height="8" rx="2" fill={C.green} opacity="0.15" stroke={C.green} strokeWidth="1.3"/>
-              <path d="M5 7V5a3 3 0 016 0v2" stroke={C.green} strokeWidth="1.3" strokeLinecap="round"/>
-              <circle cx="8" cy="11" r="1" fill={C.green}/>
+              <rect x="2" y="7" width="12" height="8" rx="2" fill="rgba(170,255,0,.15)" stroke="#AAFF00" strokeWidth="1.3"/>
+              <path d="M5 7V5a3 3 0 016 0v2" stroke="#AAFF00" strokeWidth="1.3" strokeLinecap="round"/>
+              <circle cx="8" cy="11" r="1" fill="#AAFF00"/>
             </svg>
           ) : (
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="2" y="7" width="12" height="8" rx="2" stroke={C.inkFaint} strokeWidth="1.3"/>
-              <path d="M5 7V5a3 3 0 016 0v2" stroke={C.inkFaint} strokeWidth="1.3" strokeLinecap="round"/>
+              <rect x="2" y="7" width="12" height="8" rx="2" stroke="rgba(255,255,255,.2)" strokeWidth="1.3"/>
+              <path d="M5 7V5a3 3 0 016 0v2" stroke="rgba(255,255,255,.2)" strokeWidth="1.3" strokeLinecap="round"/>
             </svg>
           )}
         </div>
- 
-        <input
-          type="text"
-          placeholder={
-            ready
-              ? `Message ${peer.charAt(0).toUpperCase() + peer.slice(1)} — encrypted with AES-256-GCM`
-              : "Waiting for peer connection…"
-          }
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && sendMessage()}
-          disabled={!ready}
-          className="msg-input"
-        />
-        <button
-          onClick={sendMessage}
-          disabled={!ready}
-          className="send-btn"
-        >
-          Send →
-        </button>
+        <input type="text" placeholder={ready?`Message ${peer.charAt(0).toUpperCase()+peer.slice(1)} — AES-256-GCM encrypted…`:"Waiting for peer connection…"} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMessage()} disabled={!ready} className="cc-input" style={{ flex:1,height:44,borderRadius:10 }} />
+        <button onClick={sendMessage} disabled={!ready} className="cc-send-btn">SEND →</button>
       </div>
     </div>
   );
 }
  
-// ─────────────────────────────────────────────
-// 🚀 APP ROOT
-// ─────────────────────────────────────────────
 export default function App() {
   const [username, setUsername] = useState(null);
- 
-  function handleLogout() {
-    if (username) set(ref(db, `keys/${username}`), null);
-    setUsername(null);
-  }
- 
+  function handleLogout() { if (username) set(ref(db, `keys/${username}`), null); setUsername(null); }
   if (!username) return <LoginScreen onLogin={setUsername} />;
   return <ChatScreen username={username} onLogout={handleLogout} />;
 }
