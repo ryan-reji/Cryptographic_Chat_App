@@ -16,7 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
  
-const USERS = { alice: "alice_password_123", bob: "bob_password_456" };
+const USERS = { divine: "alice_password_123", marshal: "bob_password_456" };
  
 async function hashPassword(password, saltHex) {
   const enc = new TextEncoder();
@@ -131,8 +131,8 @@ select.cc-input option{background:#130B2B;color:white;}
 .secure-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(170,255,0,.08);border:1px solid rgba(170,255,0,.3);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--nl);font-weight:600;letter-spacing:.05em;}
 .secure-dot{width:6px;height:6px;border-radius:50%;background:var(--nl);box-shadow:0 0 8px var(--nl);animation:pulse-ring 2s ease infinite;}
 .crypto-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(191,0,255,.08);border:1px solid rgba(191,0,255,.25);border-radius:6px;padding:3px 10px;font-size:10px;font-family:'Space Mono',monospace;color:rgba(191,0,255,.9);flex-shrink:0;}
-.user-tag-alice{background:rgba(255,45,120,.12);border:1px solid rgba(255,45,120,.3);color:var(--np);border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600;}
-.user-tag-bob{background:rgba(0,245,255,.1);border:1px solid rgba(0,245,255,.3);color:var(--nc);border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600;}
+.user-tag-divine{background:rgba(255,45,120,.12);border:1px solid rgba(255,45,120,.3);color:var(--np);border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600;}
+.user-tag-marshal{background:rgba(0,245,255,.1);border:1px solid rgba(0,245,255,.3);color:var(--nc);border-radius:20px;padding:3px 12px;font-size:12px;font-weight:600;}
 `;
  
 function BgEffects() {
@@ -149,7 +149,7 @@ function BgEffects() {
 }
  
 function LoginScreen({ onLogin }) {
-  const [user, setUser] = useState("alice");
+  const [user, setUser] = useState("divine");
   const [pass, setPass] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -203,8 +203,8 @@ function LoginScreen({ onLogin }) {
           <div style={{ marginBottom:14 }}>
             <label style={{ display:"block",fontSize:11,fontWeight:600,color:"rgba(255,255,255,.4)",letterSpacing:".12em",textTransform:"uppercase",marginBottom:6 }}>Operator ID</label>
             <select className="cc-input" value={user} onChange={e => setUser(e.target.value)}>
-              <option value="alice">ALICE</option>
-              <option value="bob">BOB</option>
+              <option value="divine">DIVINE</option>
+              <option value="marshal">MARSHAL</option>
             </select>
           </div>
  
@@ -232,7 +232,7 @@ function LoginScreen({ onLogin }) {
 }
  
 function ChatScreen({ username, onLogout }) {
-  const peer = username === "alice" ? "bob" : "alice";
+  const peer = username === "divine" ? "marshal" : "divine";
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [status, setStatus] = useState("Initializing ECDH subsystem…");
@@ -286,10 +286,10 @@ function ChatScreen({ username, onLogout }) {
     await push(ref(db, "messages"), { from: username, iv, ciphertext, ts: Date.now() });
   }
  
-  const uColors = { alice:"var(--np)", bob:"var(--nc)" };
-  const uClass = { alice:"user-tag-alice", bob:"user-tag-bob" };
-  const bBorder = { alice:"rgba(255,45,120,.4)", bob:"rgba(0,245,255,.4)" };
-  const bBg = { alice:"rgba(255,45,120,.06)", bob:"rgba(0,245,255,.06)" };
+  const uColors = { divine:"var(--np)", marshal:"var(--nc)" };
+  const uClass = { divine:"user-tag-divine", marshal:"user-tag-marshal" };
+  const bBorder = { divine:"rgba(255,45,120,.4)", marshal:"rgba(0,245,255,.4)" };
+  const bBg = { divine:"rgba(255,45,120,.06)", marshal:"rgba(0,245,255,.06)" };
   const tickerTxt = "⬡ CRYPTCHAT · ECDH P-256 · AES-256-GCM · SHA-256 SALTED · END-TO-END ENCRYPTED · NO PLAINTEXT STORED · ";
  
   return (
